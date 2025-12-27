@@ -4,20 +4,42 @@ import {
   Trash2, 
   BarChart2, 
   Grid, 
-  Printer, 
   ChevronLeft, 
   ChevronRight, 
   Check, 
   Smartphone, 
   Activity, 
-  Target,
-  Trophy,
-  Layout,
-  Save,
-  Menu,
-  X,
-  LogOut,
-  LogIn
+  Target, 
+  Trophy, 
+  Layout, 
+  Save, 
+  Menu, 
+  X, 
+  LogOut, 
+  LogIn, 
+  Zap, 
+  Flame, 
+  TrendingUp, 
+  Lock, 
+  Unlock, 
+  Bell, 
+  Calendar, 
+  Maximize2, 
+  Minimize2, 
+  Cpu, 
+  Globe, 
+  ShieldCheck, 
+  Users, 
+  Crown, 
+  ArrowRight, 
+  UserCircle, 
+  Copy, 
+  AlertTriangle, 
+  Download, 
+  ShieldAlert, 
+  Medal, 
+  Sparkles,
+  Share
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -31,7 +53,7 @@ import {
   Pie, 
   Cell, 
   BarChart, 
-  Bar,
+  Bar, 
   Legend
 } from 'recharts';
 import { initializeApp } from 'firebase/app';
@@ -39,10 +61,11 @@ import {
   getAuth, 
   onAuthStateChanged, 
   signInAnonymously, 
-  signInWithCustomToken,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut
+  signInWithCustomToken, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  updateProfile 
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -53,16 +76,15 @@ import {
   deleteDoc, 
   onSnapshot, 
   query, 
-  orderBy,
+  orderBy, 
+  where, 
   serverTimestamp, 
-  setDoc,
-  getDoc
+  setDoc, 
+  getDoc 
 } from 'firebase/firestore';
 
 // --- Firebase Initialization ---
-// Helper to get config from Vite Env Vars (for Vercel) or Global (for Canvas)
 const getFirebaseConfig = () => {
-  // 1. Try Vite Environment Variables (Standard for Vercel/Local)
   try {
     if (import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
       return {
@@ -74,16 +96,10 @@ const getFirebaseConfig = () => {
         appId: import.meta.env.VITE_FIREBASE_APP_ID
       };
     }
-  } catch (e) {
-    // Ignore error if import.meta is not available
-  }
-
-  // 2. Try Global Config (For Canvas Preview)
+  } catch (e) {}
   if (typeof __firebase_config !== 'undefined') {
     return JSON.parse(__firebase_config);
   }
-
-  // 3. Fallback / Placeholder
   return { apiKey: "PLACEHOLDER", projectId: "PLACEHOLDER" };
 };
 
@@ -91,7 +107,6 @@ const firebaseConfig = getFirebaseConfig();
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// Use fixed app ID for global usage or env var for isolation
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'me-supreme-tracker';
 
 // --- Utility Functions ---
@@ -102,67 +117,498 @@ const getDateKey = (date, day) => {
   const d = String(day).padStart(2, '0');
   return `${y}-${m}-${d}`;
 };
+const getFullDateKey = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+// Calculate Streak for a habit
+const calculateStreak = (history) => {
+    let streak = 0;
+    const today = new Date();
+    // Check up to 365 days back
+    for (let i = 0; i < 365; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const key = getFullDateKey(d);
+        
+        if (history && history[key]) {
+            streak++;
+        } else if (i === 0) {
+            // If today is not done, check yesterday before breaking streak
+            continue; 
+        } else {
+            break;
+        }
+    }
+    return streak;
+};
+
+// Determine Rank based on Total XP (Total Habits Completed)
+const getRankInfo = (totalCompleted) => {
+    if (totalCompleted < 10) return { title: "Drifter", next: 10, color: "text-zinc-500", progress: (totalCompleted / 10) * 100 };
+    if (totalCompleted < 50) return { title: "Novice", next: 50, color: "text-blue-400", progress: ((totalCompleted - 10) / 40) * 100 };
+    if (totalCompleted < 100) return { title: "Initiate", next: 100, color: "text-green-400", progress: ((totalCompleted - 50) / 50) * 100 };
+    if (totalCompleted < 250) return { title: "Operator", next: 250, color: "text-cyan-400", progress: ((totalCompleted - 100) / 150) * 100 };
+    if (totalCompleted < 500) return { title: "Elite", next: 500, color: "text-purple-400", progress: ((totalCompleted - 250) / 250) * 100 };
+    if (totalCompleted < 1000) return { title: "Warlord", next: 1000, color: "text-orange-500", progress: ((totalCompleted - 500) / 500) * 100 };
+    return { title: "Supreme", next: 10000, color: "text-yellow-400", progress: 100 };
+};
 
 // --- Components ---
 
-// 0. Login Screen
-const LoginView = ({ onLogin, onLocalMode, error }) => {
-  return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-white">
-      <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center font-black text-3xl shadow-lg transform rotate-3">
-            M
-          </div>
+// 0. New Habit Modal (Discipline vs Motivation)
+const NewHabitModal = ({ isOpen, onClose, onConfirm }) => {
+    const [name, setName] = useState('');
+    const [goal, setGoal] = useState('');
+    const [mode, setMode] = useState(null); // 'motivation' | 'discipline'
+    const [showLecture, setShowLecture] = useState(false);
+
+    if (!isOpen) return null;
+
+    const handleModeSelect = (selectedMode) => {
+        if (selectedMode === 'motivation') {
+            setShowLecture(true);
+        } else {
+            setMode('discipline');
+        }
+    };
+
+    const handleSubmit = () => {
+        if (!name) return;
+        onConfirm(name, parseInt(goal) || 0);
+        // Reset
+        setName('');
+        setGoal('');
+        setMode(null);
+        setShowLecture(false);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-zinc-900 border border-zinc-700 w-full max-w-md rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+                <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X size={20}/></button>
+                
+                <h2 className="text-xl font-black text-white mb-1 uppercase tracking-wider">Initialize Protocol</h2>
+                <p className="text-zinc-500 text-xs mb-6">Define your new habit parameters.</p>
+
+                {!mode && !showLecture && (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase font-bold text-zinc-400 tracking-widest">Habit Name</label>
+                            <input 
+                                type="text" 
+                                value={name}
+                                onChange={e => setName(e.target.value)}
+                                className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-white focus:border-lime-400 outline-none"
+                                placeholder="e.g. 5AM Run"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase font-bold text-zinc-400 tracking-widest">Monthly Target (Days)</label>
+                            <input 
+                                type="number" 
+                                value={goal}
+                                onChange={e => setGoal(e.target.value)}
+                                className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-white focus:border-lime-400 outline-none"
+                                placeholder="0 = Every Day"
+                            />
+                        </div>
+                        <div className="pt-4">
+                            <p className="text-center text-zinc-300 text-sm font-bold mb-4">What fuels this habit?</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button 
+                                    onClick={() => handleModeSelect('motivation')}
+                                    className="p-4 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 border border-pink-500/30 hover:border-pink-500 text-pink-200 font-bold text-sm transition-all"
+                                >
+                                    Motivation 
+                                    <span className="block text-[9px] font-normal opacity-70 mt-1">"I feel like doing it"</span>
+                                </button>
+                                <button 
+                                    onClick={() => handleModeSelect('discipline')}
+                                    className="p-4 rounded-xl bg-gradient-to-br from-lime-500/20 to-emerald-500/20 border border-lime-500/30 hover:border-lime-500 text-lime-200 font-bold text-sm transition-all"
+                                >
+                                    Discipline
+                                    <span className="block text-[9px] font-normal opacity-70 mt-1">"I must do it"</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showLecture && (
+                    <div className="text-center py-8 animate-in zoom-in-95">
+                        <AlertTriangle size={48} className="text-yellow-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-bold text-white mb-2">SYSTEM ALERT</h3>
+                        <p className="text-zinc-300 text-sm leading-relaxed mb-6">
+                            Motivation is a feeling. Feelings are temporary.<br/>
+                            Discipline is a system. Systems last forever.
+                        </p>
+                        <button 
+                            onClick={() => setShowLecture(false)}
+                            className="px-6 py-2 bg-zinc-800 text-white text-xs font-bold rounded-lg hover:bg-zinc-700 transition-colors border border-zinc-600"
+                        >
+                            GO BACK
+                        </button>
+                    </div>
+                )}
+
+                {mode === 'discipline' && !showLecture && (
+                    <div className="text-center py-6 animate-in slide-in-from-right">
+                        <ShieldCheck size={48} className="text-lime-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-bold text-white mb-2">PROTOCOL ACCEPTED</h3>
+                        <p className="text-zinc-400 text-sm mb-6">
+                            You have chosen the hard path. Good.<br/>
+                        </p>
+                        <button 
+                            onClick={handleSubmit}
+                            disabled={!name}
+                            className="w-full bg-lime-400 text-black font-black py-4 rounded-xl hover:bg-lime-300 transition-colors"
+                        >
+                            CONFIRM & COMMIT
+                        </button>
+                    </div>
+                )}
+            </div>
         </div>
-        <h1 className="text-3xl font-bold text-center mb-2">Tracker</h1>
-        <p className="text-slate-400 text-center mb-8">Ultimate Habit Command Center</p>
+    );
+};
+
+// 1. Login Screen
+const LoginView = ({ onLogin, onLocalMode, error, isConfigured }) => {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [validationMsg, setValidationMsg] = useState('');
+
+  const validateAndSubmit = (action) => {
+      if (!firstName.trim() || !lastName.trim()) {
+          setValidationMsg("Identity Protocol Failed: Name & Surname Required");
+          return;
+      }
+      setValidationMsg('');
+      action({ firstName: firstName.trim(), lastName: lastName.trim() });
+  };
+
+  return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 text-white relative overflow-hidden font-sans">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(76,29,149,0.1),rgba(0,0,0,1))] pointer-events-none"></div>
+        <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-lime-500/10 rounded-full blur-[150px] animate-pulse pointer-events-none"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] bg-purple-600/10 rounded-full blur-[150px] animate-pulse delay-1000 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none"></div>
+
+      <div className="max-w-md w-full bg-zinc-900/60 backdrop-blur-2xl p-8 rounded-[2rem] shadow-2xl border border-white/10 relative z-10 animate-in fade-in zoom-in-95 duration-700 flex flex-col items-center">
+        <div className="w-20 h-20 mb-6 relative group">
+            <div className="absolute inset-0 bg-lime-400 rounded-3xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-500"></div>
+            <div className="w-full h-full bg-gradient-to-br from-lime-400 to-emerald-500 rounded-3xl flex items-center justify-center relative shadow-2xl transform transition-transform group-hover:scale-105 group-hover:rotate-3">
+                 <span className="font-black text-4xl text-black">M</span>
+            </div>
+        </div>
+
+        <h1 className="text-4xl font-black text-center mb-1 tracking-tighter text-white drop-shadow-lg">
+            TRACKER<span className="text-lime-400">.OS</span>
+        </h1>
         
-        <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-8">
+            <span className={`w-2 h-2 rounded-full animate-pulse ${isConfigured ? 'bg-lime-500' : 'bg-red-500'}`}></span>
+            <p className={`text-xs font-bold tracking-[0.2em] uppercase ${isConfigured ? 'text-zinc-400' : 'text-red-400'}`}>
+                Status: {isConfigured ? 'Database Connected' : 'Env Config Missing'}
+            </p>
+        </div>
+        
+        <div className="w-full space-y-3 mb-6">
+            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest pl-2">Operative Identity</label>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="relative">
+                    <UserCircle size={16} className="absolute left-3 top-3.5 text-zinc-500"/>
+                    <input 
+                        type="text" 
+                        value={firstName} 
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="Name" 
+                        className="w-full bg-black/50 border border-zinc-700 rounded-xl py-3 pl-10 pr-3 text-sm text-white placeholder-zinc-600 focus:border-lime-400 focus:ring-0 outline-none transition-all"
+                    />
+                </div>
+                <input 
+                    type="text" 
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Surname" 
+                    className="w-full bg-black/50 border border-zinc-700 rounded-xl py-3 px-4 text-sm text-white placeholder-zinc-600 focus:border-lime-400 focus:ring-0 outline-none transition-all"
+                />
+            </div>
+            {validationMsg && (
+                <p className="text-red-400 text-[10px] uppercase font-bold tracking-wide text-center animate-pulse">{validationMsg}</p>
+            )}
+        </div>
+
+        <div className="w-full space-y-4">
           <button 
-            onClick={onLogin}
-            className="w-full bg-white text-slate-900 font-bold py-3 px-4 rounded-xl hover:bg-slate-100 transition-all flex items-center justify-center gap-3"
+            onClick={() => validateAndSubmit(onLogin)}
+            disabled={!isConfigured}
+            className={`w-full font-black py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_20px_rgba(255,255,255,0.1)] group
+                ${isConfigured ? 'bg-white text-black hover:bg-zinc-200' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}
+            `}
           >
-            <LogIn size={20} />
-            Sign in with Google
+            <Globe size={20} className={isConfigured ? "group-hover:rotate-12 transition-transform" : ""}/>
+            {isConfigured ? 'INITIALIZE CLOUD SYNC' : 'CLOUD UNAVAILABLE'}
           </button>
           
-          <div className="relative">
+          <div className="relative py-2">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-600" />
+              <span className="w-full border-t border-white/10" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-slate-800 px-2 text-slate-500">Or continue offline</span>
+            <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
+              <span className="bg-transparent px-3 text-zinc-500">Or Access Local Storage</span>
             </div>
           </div>
 
           <button 
-            onClick={onLocalMode}
-            className="w-full bg-slate-700 text-slate-300 font-medium py-3 px-4 rounded-xl hover:bg-slate-600 transition-all flex items-center justify-center gap-3"
+            onClick={() => validateAndSubmit(onLocalMode)}
+            className="w-full bg-black/50 hover:bg-black/70 text-zinc-300 font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] border border-white/10 group"
           >
-            <Smartphone size={20} />
-            Use Device Storage Only
+            <Cpu size={20} className="text-lime-400 group-hover:animate-spin-slow"/>
+            DEVICE STORAGE MODE
           </button>
         </div>
 
         {error && (
-          <div className="mt-6 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm text-center">
-            {error}
+          <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-xs text-center font-bold uppercase tracking-wide flex items-center gap-2">
+            <ShieldCheck size={16} /> {error}
           </div>
         )}
 
-        <p className="mt-6 text-xs text-center text-slate-500">
-          Sync requires Google Sign-In. Local mode data stays on this device.
-        </p>
+        {!isConfigured && (
+            <p className="mt-4 text-[10px] text-zinc-600 text-center max-w-xs leading-relaxed">
+                Database link not detected. To enable cloud features, ensure your <span className="text-zinc-400 font-mono">.env</span> file is configured correctly.
+            </p>
+        )}
+        
+        <div className="mt-8 flex items-center justify-between w-full px-4 opacity-30 hover:opacity-100 transition-opacity">
+            <p className="text-[9px] text-zinc-500 font-mono">ID: {Math.random().toString(36).substr(2, 6).toUpperCase()}</p>
+            <p className="text-[9px] text-zinc-500 font-mono">SECURE.ENCRYPTED</p>
+        </div>
       </div>
     </div>
   );
 };
 
-// 1. Digital Tracker (Spreadsheet View)
-const TrackerView = ({ habits, currentDate, onToggle, onAdd, onDelete, onUpdateField }) => {
+// 4. Squad / Family View
+const SquadView = ({ user, userProfile, onJoinSquad }) => {
+    const [joinCode, setJoinCode] = useState('');
+    const [members, setMembers] = useState([]);
+    const [activeTab, setActiveTab] = useState('join');
+    
+    useEffect(() => {
+        if (!user || !userProfile?.squadId) return;
+
+        if (user.uid === 'local-user') {
+            setMembers([{
+                uid: 'local-user',
+                displayName: userProfile.displayName || 'Local Operator',
+                todayScore: userProfile.todayScore || 0,
+                lastActive: { toMillis: () => Date.now() }
+            }]);
+            return;
+        }
+
+        const q = query(
+            collection(db, 'artifacts', appId, 'users'), 
+            where('squadId', '==', userProfile.squadId)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const mems = snapshot.docs.map(doc => ({
+                uid: doc.id,
+                ...doc.data()
+            }));
+            mems.sort((a, b) => (b.todayScore || 0) - (a.todayScore || 0));
+            setMembers(mems);
+        });
+
+        return () => unsubscribe();
+    }, [user, userProfile]);
+
+    const handleJoin = (e) => {
+        e.preventDefault();
+        if(!joinCode.trim()) return;
+        onJoinSquad(joinCode.trim().toUpperCase());
+    };
+
+    const handleCreate = () => {
+        const code = 'SQ-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        onJoinSquad(code);
+    };
+
+    const copySquadCode = () => {
+        if (userProfile?.squadId) {
+            navigator.clipboard.writeText(userProfile.squadId);
+        }
+    }
+
+    if (!userProfile?.squadId) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full min-h-[500px] animate-in fade-in slide-in-from-bottom-4 p-4">
+                <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-md w-full text-center relative overflow-hidden shadow-2xl">
+                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-lime-400 to-cyan-500"></div>
+                     <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                        <Users size={32} className="text-lime-400" />
+                     </div>
+                     <h2 className="text-3xl font-black text-white mb-2 tracking-tight">SQUAD PROTOCOL</h2>
+                     <p className="text-zinc-400 mb-8 text-sm">Synchronize with family or friends. Compete for dominance.</p>
+                     
+                     {user.uid === 'local-user' && (
+                         <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-500 text-xs font-bold uppercase tracking-wide">
+                             ⚠ Local Mode Active: You will only see your own stats. Sign in with Google to sync with others.
+                         </div>
+                     )}
+
+                     <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-xl mb-6">
+                         <button 
+                            onClick={() => setActiveTab('join')}
+                            className={`py-2 text-xs font-bold uppercase rounded-lg transition-all ${activeTab === 'join' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                         >
+                             Join Squad
+                         </button>
+                         <button 
+                            onClick={() => setActiveTab('create')}
+                            className={`py-2 text-xs font-bold uppercase rounded-lg transition-all ${activeTab === 'create' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                         >
+                             Create Squad
+                         </button>
+                     </div>
+
+                     {activeTab === 'join' ? (
+                        <form onSubmit={handleJoin} className="space-y-4 animate-in fade-in zoom-in-95">
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest mb-1 block text-left">Enter Access Code</label>
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        value={joinCode}
+                                        onChange={(e) => setJoinCode(e.target.value)}
+                                        placeholder="e.g. SQ-XY92Z"
+                                        className="w-full bg-black border border-zinc-700 rounded-xl p-4 text-center font-black text-xl text-white uppercase placeholder-zinc-800 focus:border-lime-400 focus:ring-0 outline-none transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <button 
+                                type="submit"
+                                className="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-lime-400 transition-colors flex items-center justify-center gap-2"
+                            >
+                                {user.uid === 'local-user' ? 'ACTIVATE SOLO SQUAD' : 'JOIN SQUAD'} <ArrowRight size={18} strokeWidth={3}/>
+                            </button>
+                        </form>
+                     ) : (
+                        <div className="space-y-4 animate-in fade-in zoom-in-95">
+                            <div className="bg-black/50 p-4 rounded-xl border border-zinc-800/50">
+                                <p className="text-zinc-400 text-xs mb-2">Initialize a new secure channel for your team.</p>
+                                <div className="flex items-center justify-center gap-2 text-lime-400/50">
+                                    <ShieldCheck size={20} />
+                                    <span className="text-xs font-mono">ENCRYPTED CHANNEL</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={handleCreate}
+                                className="w-full bg-lime-400 text-black font-black py-4 rounded-xl hover:bg-lime-300 transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(163,230,53,0.3)]"
+                            >
+                                GENERATE NEW SQUAD <Plus size={18} strokeWidth={3}/>
+                            </button>
+                        </div>
+                     )}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="animate-in fade-in slide-in-from-bottom-4">
+            <div className="bg-zinc-900 border-b border-zinc-800 p-6 rounded-t-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                            <Users className="text-lime-400"/> {userProfile.squadId}
+                        </h2>
+                        {user.uid !== 'local-user' && (
+                            <button 
+                                onClick={copySquadCode}
+                                className="p-1.5 bg-zinc-800 rounded-md text-zinc-400 hover:text-white transition-colors" 
+                                title="Copy Code"
+                            >
+                                <Copy size={14}/>
+                            </button>
+                        )}
+                    </div>
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mt-1">
+                        {user.uid === 'local-user' ? 'Local Performance Record' : 'Live Family Leaderboard'}
+                    </p>
+                </div>
+                <div className="bg-zinc-800 px-4 py-2 rounded-lg border border-zinc-700 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className="text-zinc-400 text-xs">Active Agents: </span>
+                    <span className="text-white font-bold">{members.length}</span>
+                </div>
+            </div>
+
+            <div className="bg-zinc-900 border-x border-b border-zinc-800 rounded-b-3xl p-4 space-y-2 min-h-[400px]">
+                {members.map((member, index) => (
+                    <div 
+                        key={member.uid} 
+                        className={`p-4 rounded-2xl flex items-center gap-4 transition-all
+                            ${member.uid === user.uid ? 'bg-lime-900/10 border border-lime-500/30' : 'bg-black border border-zinc-800'}
+                        `}
+                    >
+                        <div className="w-8 h-8 flex items-center justify-center font-black text-lg italic text-zinc-500">
+                            {index === 0 ? <Crown size={24} className="text-yellow-400 fill-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"/> : `#${index + 1}`}
+                        </div>
+                        
+                        <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-lg border-2 border-zinc-700 overflow-hidden relative shadow-lg">
+                             <span className="text-white">{member.displayName ? member.displayName[0].toUpperCase() : 'U'}</span>
+                             {member.lastActive && (Date.now() - member.lastActive.toMillis() < 300000) && (
+                                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-lime-500 rounded-full border-2 border-black"></div>
+                             )}
+                        </div>
+
+                        <div className="flex-1">
+                            <h3 className="font-bold text-white flex items-center gap-2 text-sm md:text-base">
+                                {member.displayName || 'Unknown Warrior'}
+                                {member.uid === user.uid && <span className="text-[9px] bg-lime-400 text-black px-1.5 py-0.5 rounded font-black tracking-wider">YOU</span>}
+                            </h3>
+                            <div className="flex items-center gap-3 mt-1">
+                                <div className="h-1.5 flex-1 bg-zinc-800 rounded-full overflow-hidden max-w-[120px]">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-lime-400 to-cyan-400" 
+                                        style={{ width: `${Math.min(100, (member.todayScore || 0) * 10)}%` }} 
+                                    ></div>
+                                </div>
+                                <span className="text-[10px] text-zinc-500 font-mono">STATUS: {member.todayScore > 0 ? 'ACTIVE' : 'IDLE'}</span>
+                            </div>
+                        </div>
+
+                        <div className="text-center min-w-[60px]">
+                            <span className="block text-2xl font-black text-white">{member.todayScore || 0}</span>
+                            <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-wider">Points</span>
+                        </div>
+                    </div>
+                ))}
+                {members.length === 0 && (
+                    <div className="p-8 text-center text-zinc-500">
+                        <p>Waiting for squad members to join...</p>
+                        <p className="text-xs mt-2">Share code: <span className="text-white font-mono bg-zinc-800 px-2 py-1 rounded">{userProfile.squadId}</span></p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// 1. Digital Tracker (Gen Z Dark Mode)
+const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, strictMode, toggleStrictMode }) => {
   const daysInMonth = getDaysInMonth(currentDate);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   const getDayLabel = (day) => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
@@ -176,50 +622,87 @@ const TrackerView = ({ habits, currentDate, onToggle, onAdd, onDelete, onUpdateF
            today.getFullYear() === currentDate.getFullYear();
   };
 
+  const isFutureDate = (day) => {
+      const today = new Date();
+      const checkDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      return checkDate > todayDate;
+  };
+
+  const handleDeleteClick = (id) => {
+      if (deleteConfirmId === id) {
+          onDelete(id);
+          setDeleteConfirmId(null);
+      } else {
+          setDeleteConfirmId(id);
+          setTimeout(() => setDeleteConfirmId(null), 3000);
+      }
+  };
+
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Header / Controls */}
-      <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <Grid size={20} className="text-indigo-600" />
-          Habit Grid
+    <div className="flex flex-col h-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800/50 overflow-hidden relative">
+      <div className={`absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r transition-all duration-500 z-30 ${strictMode ? 'from-red-500 via-orange-500 to-yellow-500' : 'from-lime-400 via-emerald-500 to-cyan-500'}`}></div>
+
+      <div className="p-6 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-900/80 backdrop-blur-sm z-20">
+        <h2 className="text-xl font-black text-white flex items-center gap-3 tracking-tight">
+          <Grid size={24} className={strictMode ? "text-red-500" : "text-lime-400"} />
+          THE GRID
         </h2>
-        <button 
-          onClick={onAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-sm font-medium"
-        >
-          <Plus size={16} /> New Habit
-        </button>
+        
+        <div className="flex items-center gap-3">
+            <button
+                onClick={toggleStrictMode}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all
+                    ${strictMode 
+                        ? 'bg-red-500/10 border-red-500/50 text-red-500 hover:bg-red-500/20' 
+                        : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-700'}
+                `}
+                title={strictMode ? "Strict Mode Active: Past days locked" : "Strict Mode Off: Free editing"}
+            >
+                {strictMode ? <Lock size={14} /> : <Unlock size={14} />}
+                {strictMode ? "No Cheating On" : "Strict Mode Off"}
+            </button>
+
+            <button 
+            onClick={onOpenNewHabit}
+            className="flex items-center gap-2 px-5 py-2.5 bg-lime-400 text-black rounded-xl hover:bg-lime-300 transition-all shadow-[0_0_15px_rgba(163,230,53,0.3)] text-sm font-bold hover:scale-105 active:scale-95"
+            >
+            <Plus size={18} strokeWidth={3} /> NEW HABIT
+            </button>
+        </div>
       </div>
 
-      {/* Spreadsheet Area */}
-      <div className="flex-1 overflow-auto relative custom-scrollbar">
+      <div className="flex-1 overflow-auto relative custom-scrollbar bg-black/20">
         <table className="w-full border-collapse text-sm">
-          <thead className="bg-slate-50 sticky top-0 z-20 shadow-sm">
+          <thead className="bg-zinc-900 sticky top-0 z-20 shadow-lg">
             <tr>
-              <th className="p-3 text-left font-semibold text-slate-600 min-w-[150px] md:min-w-[200px] sticky left-0 bg-slate-50 z-30 border-r border-slate-200">
-                Habit Name
+              <th className="p-4 text-left font-bold text-zinc-500 min-w-[200px] md:min-w-[240px] sticky left-0 bg-zinc-900 z-30 border-r border-zinc-800/50 uppercase text-xs tracking-wider">
+                Protocol Name
               </th>
-              <th className="p-2 text-center font-semibold text-slate-600 w-[50px] md:w-[60px] border-r border-slate-200 text-xs">
-                Goal
+              <th className="p-2 text-center font-bold text-zinc-600 w-[70px] border-r border-zinc-800/50 text-[10px] uppercase tracking-wider">
+                Target
               </th>
               {daysArray.map(day => (
-                <th key={day} className={`p-1 min-w-[32px] md:min-w-[36px] text-center border-r border-slate-100 ${isToday(day) ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-500'}`}>
-                  <div className="text-[9px] md:text-[10px] uppercase opacity-70">{getDayLabel(day)}</div>
-                  <div className="text-xs">{day}</div>
+                <th key={day} className={`p-1 min-w-[36px] md:min-w-[40px] text-center border-r border-zinc-800/30 ${isToday(day) ? 'bg-lime-900/20 text-lime-400' : 'text-zinc-600'}`}>
+                  <div className="text-[9px] font-black uppercase mb-0.5 opacity-70">{getDayLabel(day)}</div>
+                  <div className={`text-xs font-bold ${isToday(day) ? 'text-lime-400' : 'text-zinc-400'}`}>{day}</div>
                 </th>
               ))}
-              <th className="p-2 min-w-[50px] md:min-w-[60px] text-center text-slate-600 font-semibold sticky right-0 bg-slate-50 z-20 border-l border-slate-200 text-xs">
-                %
+              <th className="p-2 min-w-[70px] text-center text-zinc-500 font-bold sticky right-0 bg-zinc-900 z-20 border-l border-zinc-800/50 text-[10px] uppercase tracking-wider">
+                Score
               </th>
-              <th className="p-2 min-w-[30px] md:min-w-[40px] sticky right-0 bg-slate-50 z-20"></th>
+              <th className="p-2 min-w-[40px] sticky right-0 bg-zinc-900 z-20"></th>
             </tr>
           </thead>
           <tbody>
             {habits.length === 0 ? (
               <tr>
-                <td colSpan={daysInMonth + 4} className="p-12 text-center text-slate-400">
-                  No habits yet. Click "New Habit" to start building your routine.
+                <td colSpan={daysInMonth + 4} className="p-20 text-center">
+                  <div className="flex flex-col items-center justify-center opacity-30 animate-pulse">
+                     <Grid size={48} className="mb-4 text-white"/>
+                     <p className="text-zinc-300 font-bold text-lg">GRID EMPTY</p>
+                     <p className="text-zinc-500 text-sm">Initialize your first protocol to begin.</p>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -228,61 +711,86 @@ const TrackerView = ({ habits, currentDate, onToggle, onAdd, onDelete, onUpdateF
                   return acc + (habit.history?.[getDateKey(currentDate, day)] ? 1 : 0);
                 }, 0);
                 
-                // Goal Calculation
-                const goal = habit.goal || daysInMonth;
-                const percent = Math.min(100, Math.round((totalCompleted / goal) * 100));
-                const isGoalMet = totalCompleted >= goal;
+                const effectiveGoal = (habit.goal && habit.goal > 0) ? habit.goal : daysInMonth;
+                const percent = Math.min(100, Math.round((totalCompleted / effectiveGoal) * 100));
+                const isGoalMet = totalCompleted >= effectiveGoal;
+                const streak = calculateStreak(habit.history);
 
                 return (
-                  <tr key={habit.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
-                    <td className="p-2 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200">
-                      <input 
-                        type="text" 
-                        value={habit.name}
-                        onChange={(e) => onUpdateField(habit.id, 'name', e.target.value)}
-                        className="w-full bg-transparent border-none focus:ring-0 text-slate-700 font-medium placeholder-slate-300 text-sm"
-                        placeholder="Enter habit..."
-                      />
+                  <tr key={habit.id} className={`border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group`}>
+                    <td className="p-2 sticky left-0 bg-zinc-900 group-hover:bg-zinc-800/90 z-10 border-r border-zinc-800/50 transition-colors">
+                      <div className="flex items-center gap-3 w-full">
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                             {/* Streak Indicator */}
+                             <div className="flex items-center gap-1 text-orange-500 shrink-0" title={`Current Streak: ${streak} days`}>
+                                 <Flame size={14} className={streak > 0 ? "fill-orange-500 animate-pulse" : "text-zinc-700"} />
+                                 <span className={`text-[10px] font-bold ${streak > 0 ? "text-orange-500" : "text-zinc-700"}`}>{streak}</span>
+                             </div>
+                             <input 
+                                type="text" 
+                                value={habit.name}
+                                onChange={(e) => onUpdateField(habit.id, 'name', e.target.value)}
+                                className="w-full bg-transparent border-none focus:ring-0 text-zinc-200 font-bold placeholder-zinc-700 text-sm focus:text-lime-400 transition-colors truncate"
+                                placeholder="PROTOCOL NAME..."
+                             />
+                          </div>
+                      </div>
                     </td>
-                    <td className="p-1 text-center border-r border-slate-200">
+                    <td className="p-1 text-center border-r border-zinc-800/50">
                        <input 
                         type="number" 
-                        value={habit.goal || ''}
+                        value={(habit.goal && habit.goal > 0) ? habit.goal : ''}
                         onChange={(e) => onUpdateField(habit.id, 'goal', parseInt(e.target.value) || 0)}
-                        className="w-full text-center bg-transparent border-none focus:ring-0 text-slate-500 text-xs"
-                        placeholder={daysInMonth}
+                        className={`w-full text-center bg-transparent border-none focus:ring-0 font-mono text-xs font-bold ${habit.goal > 0 ? 'text-white' : 'text-zinc-600 italic'}`}
+                        placeholder={daysInMonth} 
                       />
                     </td>
                     {daysArray.map(day => {
                       const dateKey = getDateKey(currentDate, day);
                       const isDone = habit.history?.[dateKey];
+                      const isFuture = isFutureDate(day);
+                      const isPast = strictMode && !isToday(day) && new Date(currentDate.getFullYear(), currentDate.getMonth(), day) < new Date();
+                      const isDisabled = isFuture || isPast;
+
                       return (
-                        <td key={day} className={`p-0 text-center border-r border-slate-100 ${isToday(day) ? 'bg-indigo-50/30' : ''}`}>
+                        <td key={day} className={`p-0 text-center border-r border-zinc-800/30 ${isToday(day) ? 'bg-lime-900/10' : ''} ${isDisabled ? 'bg-black/40' : ''}`}>
                           <button
+                            disabled={isDisabled}
                             onClick={() => onToggle(habit.id, dateKey)}
-                            className={`w-full h-9 md:h-10 flex items-center justify-center transition-all duration-200 hover:bg-indigo-100/50 ${isDone ? 'bg-indigo-500 text-white hover:!bg-indigo-600' : ''}`}
+                            className={`w-full h-10 md:h-12 flex items-center justify-center transition-all duration-300 relative group/btn
+                                ${isDone ? 'bg-transparent' : 'hover:bg-zinc-800'}
+                                ${isDisabled ? 'cursor-not-allowed opacity-30' : 'cursor-pointer'}
+                            `}
                           >
-                            {isDone && <Check size={14} strokeWidth={4} />}
+                            {isDone ? (
+                                <div className={`w-6 h-6 rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(163,230,53,0.6)] transform scale-110 transition-transform duration-200
+                                    ${isDisabled ? 'bg-zinc-600 grayscale' : 'bg-lime-400 hover:scale-125 hover:rotate-3'}`}>
+                                     <Check size={16} strokeWidth={4} className="text-black" />
+                                </div>
+                            ) : (
+                                <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isDisabled ? 'bg-zinc-800' : 'bg-zinc-700 group-hover/btn:bg-zinc-600'}`}></div>
+                            )}
                           </button>
                         </td>
                       );
                     })}
-                    <td className="p-2 text-center font-bold text-xs border-l border-slate-200 bg-white group-hover:bg-slate-50 sticky right-0 z-10">
+                    <td className="p-2 text-center font-bold text-xs border-l border-zinc-800/50 bg-zinc-900 group-hover:bg-zinc-800/90 sticky right-0 z-10">
                       <div className="flex flex-col items-center justify-center">
-                        <span className={`${isGoalMet ? 'text-green-600' : 'text-indigo-600'}`}>
+                        <span className={`text-base font-black ${isGoalMet ? 'text-lime-400' : 'text-white'}`}>
                           {percent}%
                         </span>
-                        <span className="text-[9px] text-slate-400 font-normal hidden md:inline">
-                          {totalCompleted}/{goal}
+                        <span className="text-[9px] text-zinc-600 font-bold font-mono">
+                          {totalCompleted}/{effectiveGoal}
                         </span>
                       </div>
                     </td>
-                    <td className="p-2 text-center bg-white group-hover:bg-slate-50 sticky right-0 z-10">
+                    <td className="p-2 text-center bg-zinc-900 group-hover:bg-zinc-800/90 sticky right-0 z-10">
                       <button 
-                        onClick={() => onDelete(habit.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors"
+                        onClick={() => handleDeleteClick(habit.id)}
+                        className={`transition-colors p-2 rounded-lg ${deleteConfirmId === habit.id ? 'bg-red-500 text-white animate-pulse' : 'text-zinc-600 hover:text-red-500 hover:bg-red-500/10'}`}
+                        title={deleteConfirmId === habit.id ? "Click again to confirm delete" : "Delete Habit"}
                       >
-                        <Trash2 size={14} />
+                        {deleteConfirmId === habit.id ? <AlertTriangle size={16} /> : <Trash2 size={16} />}
                       </button>
                     </td>
                   </tr>
@@ -296,18 +804,23 @@ const TrackerView = ({ habits, currentDate, onToggle, onAdd, onDelete, onUpdateF
   );
 };
 
-// 2. Analytics Dashboard
+// 2. Analytics Dashboard (Gen Z Dark Mode)
 const AnalyticsView = ({ habits, currentDate }) => {
   const daysInMonth = getDaysInMonth(currentDate);
-  // Fix for Recharts "width(-1)" warning: Wait for mount
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    // Small delay to ensure layout is computed
     const timer = setTimeout(() => setMounted(true), 100);
     return () => clearTimeout(timer);
   }, []);
   
-  // -- Chart 1: Daily Consistency (Line) --
+  // Calculate Total XP
+  const totalXP = habits.reduce((total, habit) => {
+      return total + Object.values(habit.history || {}).filter(val => val === true).length;
+  }, 0);
+  
+  const rankInfo = getRankInfo(totalXP);
+
+  // -- Data Prep --
   const lineData = Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
     const dateKey = getDateKey(currentDate, day);
@@ -315,7 +828,6 @@ const AnalyticsView = ({ habits, currentDate }) => {
     return { day, count };
   });
 
-  // -- Chart 2: Weekly Performance (Bar) --
   const weeklyData = [];
   for (let i = 0; i < 4; i++) {
     const startDay = i * 7 + 1;
@@ -325,11 +837,12 @@ const AnalyticsView = ({ habits, currentDate }) => {
        const dateKey = getDateKey(currentDate, d);
        weekTotal += habits.reduce((acc, h) => acc + (h.history?.[dateKey] ? 1 : 0), 0);
     }
-    weeklyData.push({ week: `Week ${i+1}`, completed: weekTotal });
+    weeklyData.push({ week: `WK ${i+1}`, completed: weekTotal });
   }
 
-  // -- Chart 3: Overall Completion (Pie) --
-  const totalGoals = habits.reduce((acc, h) => acc + (h.goal || daysInMonth), 0);
+  // Calculate based on dynamic goals
+  const totalGoals = habits.reduce((acc, h) => acc + ((h.goal && h.goal > 0) ? h.goal : daysInMonth), 0);
+  
   const totalCompletedActual = habits.reduce((acc, h) => {
     let habitCount = 0;
     for(let i=1; i<=daysInMonth; i++) {
@@ -343,9 +856,9 @@ const AnalyticsView = ({ habits, currentDate }) => {
     { name: 'Completed', value: totalCompletedActual },
     { name: 'Remaining', value: Math.max(0, totalGoals - totalCompletedActual) }
   ];
-  const PIE_COLORS = ['#4f46e5', '#e2e8f0'];
+  // Neon Colors
+  const PIE_COLORS = ['#a3e635', '#27272a']; // Lime-400, Zinc-800
 
-  // -- Top Habits --
   const sortedHabits = [...habits].sort((a, b) => {
     const getCount = (h) => {
       let c = 0;
@@ -356,18 +869,46 @@ const AnalyticsView = ({ habits, currentDate }) => {
   }).slice(0, 5);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 animate-fade-in pb-12">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 lg:gap-6 animate-fade-in mb-6">
       
+      {/* 0. NEW: Rank Card */}
+      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
+         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Medal size={120} className="text-yellow-500" />
+         </div>
+         <div>
+             <h3 className="text-zinc-500 font-bold mb-1 uppercase text-[10px] tracking-[0.2em]">Current Rank</h3>
+             <h2 className={`text-4xl font-black ${rankInfo.color} tracking-tighter drop-shadow-lg`}>{rankInfo.title.toUpperCase()}</h2>
+         </div>
+         
+         <div className="mt-8">
+             <div className="flex justify-between items-end mb-2">
+                 <span className="text-white text-2xl font-black">{totalXP} <span className="text-sm font-bold text-zinc-500">XP</span></span>
+                 <span className="text-zinc-500 text-xs font-mono">NEXT: {rankInfo.next}</span>
+             </div>
+             <div className="w-full h-4 bg-black rounded-full overflow-hidden border border-zinc-800">
+                 <div 
+                    className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-pulse" 
+                    style={{ width: `${Math.min(100, rankInfo.progress)}%` }}
+                 ></div>
+             </div>
+             <p className="text-[10px] text-zinc-500 mt-2 text-right">Complete habits to gain XP</p>
+         </div>
+      </div>
+
       {/* 1. Overall Score (Donut) */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col items-center justify-center min-h-[300px] min-w-0">
-        <h3 className="text-slate-500 font-semibold mb-2 uppercase text-xs tracking-wider">Goal Efficiency</h3>
+      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col items-center justify-center min-h-[300px] relative overflow-hidden group hover:border-lime-500/30 transition-colors duration-500">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Target size={80} className="text-lime-400" />
+        </div>
+        <h3 className="text-zinc-500 font-bold mb-2 uppercase text-[10px] tracking-[0.2em]">Efficiency Rating</h3>
         <div className="relative w-48 h-48">
           {mounted && (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={pieData}
-                  innerRadius={60}
+                  innerRadius={65}
                   outerRadius={80}
                   paddingAngle={5}
                   dataKey="value"
@@ -383,36 +924,55 @@ const AnalyticsView = ({ habits, currentDate }) => {
             </ResponsiveContainer>
           )}
           <div className="absolute inset-0 flex items-center justify-center flex-col">
-            <span className="text-4xl font-black text-slate-800">{completionRate}%</span>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Status</span>
+            <span className="text-5xl font-black text-white tracking-tighter">{completionRate}%</span>
+            <span className="text-[10px] text-lime-400 font-bold uppercase tracking-widest mt-2 bg-lime-400/10 px-2 py-1 rounded">On Track</span>
           </div>
         </div>
-        <p className="text-center text-sm text-slate-400 mt-4 px-4">
-          You have completed <strong>{totalCompletedActual}</strong> actions out of your <strong>{totalGoals}</strong> target goals this month.
-        </p>
+        <div className="grid grid-cols-2 gap-4 w-full mt-6">
+            <div className="text-center">
+                <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider">Done</p>
+                <p className="text-xl font-black text-white">{totalCompletedActual}</p>
+            </div>
+            <div className="text-center">
+                <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider">Target</p>
+                <p className="text-xl font-black text-zinc-400">{totalGoals}</p>
+            </div>
+        </div>
       </div>
 
       {/* 2. Consistency (Line) */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 col-span-1 md:col-span-2 lg:col-span-4 min-h-[300px] min-w-0">
-        <h3 className="text-slate-500 font-semibold mb-6 uppercase text-xs tracking-wider">Daily Consistency Flow</h3>
-        <div className="h-56 w-full">
+      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 min-h-[300px] relative overflow-hidden">
+        <div className="flex justify-between items-start mb-6">
+             <h3 className="text-zinc-500 font-bold uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
+                <TrendingUp size={14} className="text-fuchsia-500"/> Consistency Flow
+             </h3>
+        </div>
+        
+        <div className="h-60 w-full">
           {mounted && (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                <defs>
+                    <linearGradient id="lineColor" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#a3e635" />
+                        <stop offset="100%" stopColor="#d946ef" />
+                    </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#52525b', fontSize: 10, fontWeight: 'bold'}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#52525b', fontSize: 10, fontWeight: 'bold'}} />
                 <Tooltip 
-                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}}
-                  cursor={{stroke: '#6366f1', strokeWidth: 2}}
+                  contentStyle={{backgroundColor: '#18181b', borderRadius: '12px', border: '1px solid #27272a', color: '#fff'}}
+                  itemStyle={{color: '#fff'}}
+                  cursor={{stroke: '#52525b', strokeWidth: 1, strokeDasharray: '4 4'}}
                 />
                 <Line 
                   type="monotone" 
                   dataKey="count" 
-                  stroke="#6366f1" 
-                  strokeWidth={3} 
+                  stroke="url(#lineColor)" 
+                  strokeWidth={4} 
                   dot={false} 
-                  activeDot={{r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2}} 
+                  activeDot={{r: 8, fill: '#fff', stroke: '#d946ef', strokeWidth: 3}} 
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -420,199 +980,65 @@ const AnalyticsView = ({ habits, currentDate }) => {
         </div>
       </div>
 
-      {/* 3. Weekly Breakdown (Bar) */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 col-span-1 md:col-span-1 lg:col-span-3 min-h-[300px] min-w-0">
-        <h3 className="text-slate-500 font-semibold mb-6 uppercase text-xs tracking-wider">Weekly Volume</h3>
-        <div className="h-56 w-full">
-          {mounted && (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}/>
-                <Bar dataKey="completed" fill="#818cf8" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
       {/* 4. Top Habits List */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 col-span-1 md:col-span-1 lg:col-span-3 min-h-[300px] overflow-hidden min-w-0">
-        <h3 className="text-slate-500 font-semibold mb-6 uppercase text-xs tracking-wider flex items-center gap-2">
-           <Trophy className="text-yellow-500" size={16} /> Leaderboard
+      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-1 lg:col-span-3 min-h-[300px] overflow-hidden">
+        <h3 className="text-zinc-500 font-bold mb-6 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
+           <Trophy className="text-yellow-500" size={14} /> Leaderboard
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {sortedHabits.map((h, i) => {
              let count = 0;
              for(let d=1; d<=daysInMonth; d++) if(h.history?.[getDateKey(currentDate, d)]) count++;
-             const goal = h.goal || daysInMonth;
+             const goal = (h.goal && h.goal > 0) ? h.goal : daysInMonth;
              const pct = Math.min(100, Math.round((count / goal) * 100));
              
              return (
-               <div key={h.id} className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xs shrink-0">
-                    {i + 1}
+               <div key={h.id} className="flex items-center gap-4 group">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 transition-colors
+                    ${i === 0 ? 'bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.4)]' : 
+                      i === 1 ? 'bg-zinc-700 text-white' : 
+                      i === 2 ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-900 border border-zinc-800 text-zinc-600'}
+                  `}>
+                    #{i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-1">
-                       <span className="font-medium text-slate-700 text-sm truncate pr-2">{h.name}</span>
-                       <span className="text-xs font-bold text-indigo-600">{count}/{goal}</span>
+                    <div className="flex justify-between items-center mb-1.5">
+                       <span className="font-bold text-zinc-200 text-sm truncate pr-2 group-hover:text-white transition-colors">{h.name}</span>
+                       <span className="text-xs font-black text-lime-400 font-mono">{count}/{goal}</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                       <div className="bg-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }}></div>
+                    <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                       <div className="bg-gradient-to-r from-lime-400 to-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${pct}%` }}></div>
                     </div>
                   </div>
                </div>
              );
           })}
-          {sortedHabits.length === 0 && <p className="text-slate-400 text-sm italic">Add habits to see rankings.</p>}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 3. Analog / Print View
-const AnalogView = ({ habits, currentDate }) => {
-  const monthName = currentDate.toLocaleString('default', { month: 'long' });
-  const year = currentDate.getFullYear();
-  const daysInMonth = getDaysInMonth(currentDate);
-  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-  return (
-    <div className="print-container bg-white text-black p-8 max-w-[1100px] mx-auto shadow-2xl print:shadow-none print:w-full print:max-w-none print:p-0">
-      
-      {/* Header */}
-      <div className="flex justify-between items-end border-b-4 border-black pb-4 mb-6">
-        <div>
-            <h1 className="text-5xl font-black uppercase tracking-tighter italic">Tracker</h1>
-            <p className="text-sm tracking-[0.2em] uppercase mt-1 font-bold">Analog Command Center</p>
-        </div>
-        <div className="text-right">
-            <h2 className="text-6xl font-black text-slate-200 print:text-slate-300 uppercase leading-none">{monthName}</h2>
-            <p className="text-2xl font-bold tracking-widest">{year}</p>
+          {sortedHabits.length === 0 && <p className="text-zinc-600 text-sm italic py-4 text-center">No data available.</p>}
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-8">
-        
-        {/* Left Col: Habits */}
-        <div className="col-span-8">
-            <h3 className="text-xs font-black uppercase mb-2 border-b-2 border-black pb-1">Protocols & Habits</h3>
-            <div className="border-2 border-black">
-                {/* Header Row */}
-                <div className="flex border-b-2 border-black text-[9px] font-bold h-6 items-center">
-                    <div className="w-48 px-2 border-r border-black shrink-0">ROUTINE</div>
-                    {daysArray.map(d => (
-                        <div key={d} className={`flex-1 text-center border-r border-slate-300 last:border-r-0 h-full flex items-center justify-center ${d % 5 === 0 ? 'bg-slate-200 print:bg-slate-200' : ''}`}>
-                            {d}
-                        </div>
-                    ))}
-                </div>
-                {/* Habit Rows */}
-                {habits.slice(0, 20).map((h, i) => (
-                    <div key={h.id || i} className="flex border-b border-slate-300 last:border-b-0 h-7 text-[10px]">
-                        <div className="w-48 px-2 border-r border-black shrink-0 flex items-center font-bold truncate bg-slate-50 print:bg-slate-50">
-                           {h.name}
-                        </div>
-                         {daysArray.map(d => (
-                            <div key={d} className={`flex-1 border-r border-slate-200 last:border-r-0 ${d % 5 === 0 ? 'bg-slate-100 print:bg-slate-100' : ''}`}></div>
-                        ))}
-                    </div>
-                ))}
-                {/* Empty Filler Rows */}
-                {Array.from({ length: Math.max(0, 20 - habits.length) }).map((_, i) => (
-                     <div key={`empty-${i}`} className="flex border-b border-slate-300 last:border-b-0 h-7">
-                        <div className="w-48 border-r border-black shrink-0"></div>
-                        {daysArray.map(d => (
-                            <div key={d} className={`flex-1 border-r border-slate-200 last:border-r-0 ${d % 5 === 0 ? 'bg-slate-100 print:bg-slate-100' : ''}`}></div>
-                        ))}
-                    </div>
-                ))}
-            </div>
-
-            <div className="mt-8 grid grid-cols-2 gap-6">
-                 <div>
-                    <h3 className="text-xs font-black uppercase mb-2 border-b-2 border-black pb-1">Top 3 Monthly Goals</h3>
-                    <div className="border-2 border-black h-36 p-4 flex flex-col justify-between">
-                         <div className="border-b-2 border-dotted border-slate-400 h-8 flex items-end font-handwriting text-sm"><span className="font-bold mr-2">1.</span></div>
-                         <div className="border-b-2 border-dotted border-slate-400 h-8 flex items-end font-handwriting text-sm"><span className="font-bold mr-2">2.</span></div>
-                         <div className="border-b-2 border-dotted border-slate-400 h-8 flex items-end font-handwriting text-sm"><span className="font-bold mr-2">3.</span></div>
-                    </div>
-                 </div>
-                 <div>
-                    <h3 className="text-xs font-black uppercase mb-2 border-b-2 border-black pb-1">Achievements & Wins</h3>
-                    <div className="border-2 border-black h-36 p-2 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.1)_1px,transparent_1px)] [background-size:100%_20px] pointer-events-none"></div>
-                    </div>
-                 </div>
+        {/* 5. Weekly Breakdown (Bar) */}
+        <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-1 lg:col-span-3 min-h-[300px]">
+            <h3 className="text-zinc-500 font-bold mb-6 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
+                <Activity size={14} className="text-cyan-400"/> Volume
+            </h3>
+            <div className="h-56 w-full">
+            {mounted && (
+                <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
+                    <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{fill: '#52525b', fontSize: 10, fontWeight: 'bold'}} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#52525b', fontSize: 10, fontWeight: 'bold'}} />
+                    <Tooltip 
+                        cursor={{fill: '#27272a'}} 
+                        contentStyle={{backgroundColor: '#18181b', borderRadius: '12px', border: '1px solid #27272a', color: '#fff'}}
+                    />
+                    <Bar dataKey="completed" fill="#22d3ee" radius={[6, 6, 0, 0]} barSize={50} />
+                </BarChart>
+                </ResponsiveContainer>
+            )}
             </div>
         </div>
-
-        {/* Right Col: Quantified Self */}
-        <div className="col-span-4 flex flex-col gap-6">
-            
-            {/* Screen Time */}
-            <div>
-                <h3 className="text-xs font-black uppercase mb-2 border-b-2 border-black pb-1">Digital Metrics / Screen Time</h3>
-                <div className="border-2 border-black p-4 bg-slate-50 print:bg-slate-50">
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-white border-2 border-slate-800 h-16 rounded flex flex-col items-center justify-center">
-                            <span className="text-[9px] uppercase font-black text-slate-400">Morning</span>
-                            <div className="w-8 h-8 border border-slate-200 mt-1"></div>
-                        </div>
-                        <div className="bg-white border-2 border-slate-800 h-16 rounded flex flex-col items-center justify-center">
-                            <span className="text-[9px] uppercase font-black text-slate-400">Day</span>
-                            <div className="w-8 h-8 border border-slate-200 mt-1"></div>
-                        </div>
-                        <div className="bg-white border-2 border-slate-800 h-16 rounded flex flex-col items-center justify-center">
-                             <span className="text-[9px] uppercase font-black text-slate-400">Eve</span>
-                             <div className="w-8 h-8 border border-slate-200 mt-1"></div>
-                        </div>
-                        <div className="bg-white border-2 border-slate-800 h-16 rounded flex flex-col items-center justify-center">
-                             <span className="text-[9px] uppercase font-black text-slate-400">Night</span>
-                             <div className="w-8 h-8 border border-slate-200 mt-1"></div>
-                        </div>
-                    </div>
-                    <div className="text-center text-[10px] font-bold uppercase mt-2 pt-2 border-t border-slate-300">Target: &lt; 2 Hrs Total</div>
-                </div>
-            </div>
-
-            {/* Mood Graph */}
-            <div className="flex-1">
-                <h3 className="text-xs font-black uppercase mb-2 border-b-2 border-black pb-1">Mood / Energy Graph</h3>
-                <div className="border-2 border-black h-64 relative bg-white">
-                     {/* Grid lines for graph */}
-                     <div className="absolute inset-0 flex flex-col justify-between p-0 pointer-events-none">
-                         <div className="border-b border-slate-100 w-full h-full"></div>
-                         <div className="border-b border-slate-100 w-full h-full"></div>
-                         <div className="border-b border-slate-100 w-full h-full"></div>
-                         <div className="border-b border-slate-100 w-full h-full"></div>
-                     </div>
-                     <div className="absolute inset-0 flex justify-between px-1 items-end pointer-events-none">
-                         {daysArray.filter(d => d%2!==0).map(d => (
-                             <div key={d} className="h-2 w-px bg-slate-400 mb-0"></div>
-                         ))}
-                     </div>
-                     <span className="absolute top-1 left-2 text-[8px] font-black bg-white px-1">HIGH</span>
-                     <span className="absolute bottom-1 left-2 text-[8px] font-black bg-white px-1">LOW</span>
-                </div>
-            </div>
-
-            {/* Notes */}
-            <div className="h-40">
-                <h3 className="text-xs font-black uppercase mb-2 border-b-2 border-black pb-1">End of Month Review</h3>
-                <div className="border-2 border-black h-full bg-[radial-gradient(#9ca3af_1px,transparent_1px)] [background-size:10px_10px]"></div>
-            </div>
-        </div>
-      </div>
-      
-      <div className="mt-8 text-center border-t-2 border-black pt-2">
-         <p className="text-xs font-black uppercase tracking-[0.3em]">"It's not over until I win."</p>
-      </div>
-
     </div>
   );
 };
@@ -621,19 +1047,32 @@ const AnalogView = ({ habits, currentDate }) => {
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null); 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState('tracker'); 
+  const [view, setView] = useState('main'); 
   const [habits, setHabits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [strictMode, setStrictMode] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState('default');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isIOS, setIsIOS] = useState(false);
 
   // 1. Auth Listener
   useEffect(() => {
-    // Initial check for current config
     if (firebaseConfig.apiKey === "PLACEHOLDER") {
-      setLoading(false); // Stop loading so we can show login screen with error if needed
+      setLoading(false);
     }
+
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+        } catch(e) { console.error(e); }
+      }
+    };
+    initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -643,46 +1082,135 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // PWA Install Prompt Listener
+  useEffect(() => {
+      const handler = (e) => {
+          e.preventDefault();
+          setInstallPrompt(e);
+      };
+      window.addEventListener('beforeinstallprompt', handler);
+      return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+  
+  // iOS Detection
+  useEffect(() => {
+    const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIOS(isDeviceIOS);
+  }, []);
+
   // 2. Data Sync
   useEffect(() => {
     if (!user) return;
     
-    // --- LOCAL MODE HANDLER ---
     if (user.uid === 'local-user') {
         try {
             const localData = localStorage.getItem('me_supreme_habits');
-            if (localData) {
-                setHabits(JSON.parse(localData));
-            }
+            const localStrict = localStorage.getItem('me_supreme_strict_mode');
+            const localProfile = localStorage.getItem('me_supreme_profile');
+            if (localData) setHabits(JSON.parse(localData));
+            if (localStrict) setStrictMode(JSON.parse(localStrict));
+            if (localProfile) setUserProfile(JSON.parse(localProfile));
         } catch (e) {
             console.error("Local storage load error", e);
         }
         return;
     }
 
-    // --- FIRESTORE HANDLER ---
     try {
       const q = query(
         collection(db, 'artifacts', appId, 'users', user.uid, 'habits'), 
         orderBy('createdAt', 'asc')
       );
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const unsubscribeHabits = onSnapshot(q, (snapshot) => {
         const loadedHabits = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+          ...doc.data(), 
+          id: doc.id,    
         }));
         setHabits(loadedHabits);
-      }, (err) => {
-          console.error("Firestore Error:", err);
-          // Don't block UI on error, just log
       });
 
-      return () => unsubscribe();
+      const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+      const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+              setUserProfile(docSnap.data());
+          } else {
+              setDoc(userDocRef, { 
+                  displayName: user.displayName || 'Anonymous Agent',
+                  email: user.email,
+                  joinedAt: serverTimestamp()
+              }, { merge: true });
+          }
+      });
+
+      const savedStrict = localStorage.getItem('strictMode');
+      if (savedStrict) setStrictMode(JSON.parse(savedStrict));
+
+      return () => {
+          unsubscribeHabits();
+          unsubscribeProfile();
+      };
     } catch (e) {
       console.warn("Firestore sync failed:", e);
     }
   }, [user]);
+
+  // 3. Notifications Logic (Every 4 hours)
+  useEffect(() => {
+    if (!user || habits.length === 0) return;
+    
+    if ('Notification' in window) {
+        setNotificationPermission(Notification.permission);
+    }
+
+    const checkAndNotify = () => {
+        if (Notification.permission !== 'granted') return;
+
+        const now = Date.now();
+        const lastNotif = localStorage.getItem('lastNotificationTime');
+        const fourHours = 4 * 60 * 60 * 1000;
+
+        if (!lastNotif || (now - parseInt(lastNotif) > fourHours)) {
+            const todayKey = getFullDateKey(new Date());
+            const pendingCount = habits.reduce((acc, h) => {
+                return acc + (h.history?.[todayKey] ? 0 : 1);
+            }, 0);
+
+            if (pendingCount > 0) {
+                try {
+                    new Notification("Tracker.OS Protocol Alert", {
+                        body: `You have ${pendingCount} protocols pending. Maintain discipline.`,
+                        icon: '/vite.svg' 
+                    });
+                    localStorage.setItem('lastNotificationTime', now.toString());
+                } catch (e) {
+                    console.error("Notification failed", e);
+                }
+            }
+        }
+    };
+
+    checkAndNotify();
+    const interval = setInterval(checkAndNotify, 60 * 60 * 1000); 
+    return () => clearInterval(interval);
+  }, [user, habits]);
+
+  const requestNotificationPermission = async () => {
+      if (!('Notification' in window)) return;
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+  };
+
+  const handleInstallApp = async () => {
+      if (isIOS) {
+          alert("To install on iOS: Tap the 'Share' button in Safari, then select 'Add to Home Screen'.");
+          return;
+      }
+      if (!installPrompt) return;
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') setInstallPrompt(null);
+  };
 
   // --- Helpers ---
   const saveToLocal = (updatedHabits) => {
@@ -690,23 +1218,51 @@ export default function App() {
       localStorage.setItem('me_supreme_habits', JSON.stringify(updatedHabits));
   };
 
+  const updateLocalProfile = (updates) => {
+      const newProfile = { ...(userProfile || {}), ...updates };
+      setUserProfile(newProfile);
+      localStorage.setItem('me_supreme_profile', JSON.stringify(newProfile));
+  };
+
+  const toggleStrictMode = () => {
+      const newVal = !strictMode;
+      setStrictMode(newVal);
+      localStorage.setItem('me_supreme_strict_mode', JSON.stringify(newVal));
+      localStorage.setItem('strictMode', JSON.stringify(newVal));
+  };
+
   // --- Auth Handlers ---
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (identityData) => {
     if (firebaseConfig.apiKey === "PLACEHOLDER") {
-      setAuthError("Database not configured. Please see deployment instructions.");
+      setAuthError("Database not configured.");
       return;
     }
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const displayName = `${identityData.firstName} ${identityData.lastName}`;
+      await updateProfile(user, { displayName });
+      const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+      await setDoc(userDocRef, { 
+          displayName,
+          email: user.email,
+          lastActive: serverTimestamp()
+      }, { merge: true });
+
     } catch (error) {
       console.error("Login failed:", error);
       setAuthError(error.message);
     }
   };
 
-  const handleLocalMode = () => {
-    setUser({ uid: 'local-user', isAnonymous: true });
+  const handleLocalMode = (identityData) => {
+    const displayName = `${identityData.firstName} ${identityData.lastName}`;
+    setUser({ uid: 'local-user', isAnonymous: true, displayName });
+    const localProfile = JSON.parse(localStorage.getItem('me_supreme_profile') || '{}');
+    const newProfile = { ...localProfile, displayName };
+    localStorage.setItem('me_supreme_profile', JSON.stringify(newProfile));
+    setUserProfile(newProfile);
   };
 
   const handleLogout = async () => {
@@ -715,30 +1271,49 @@ export default function App() {
     } else {
       await signOut(auth);
     }
-    setHabits([]); // Clear data on logout
+    setHabits([]);
+    setUserProfile(null);
   };
 
   // --- Data Handlers ---
-  const handleAddHabit = async () => {
+  const handleAddHabit = async (name, goal) => {
     if (!user) return;
-    const daysInMonth = getDaysInMonth(currentDate);
-    const newHabit = {
-      id: user.uid === 'local-user' ? `local-${Date.now()}` : null, 
-      name: `New Habit ${habits.length + 1}`,
-      goal: daysInMonth, 
-      createdAt: new Date().toISOString(), 
+    const newHabitData = {
+      name: name || `New Protocol ${habits.length + 1}`,
+      goal: goal || 0, 
+      createdAt: serverTimestamp(), 
       history: {}
     };
 
     if (user.uid === 'local-user') {
-        saveToLocal([...habits, newHabit]);
+        const localHabit = { 
+            ...newHabitData, 
+            id: `local-${Date.now()}`, 
+            createdAt: new Date().toISOString() 
+        };
+        saveToLocal([...habits, localHabit]);
         return;
     }
 
-    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'habits'), {
-        ...newHabit,
-        createdAt: serverTimestamp() 
-    });
+    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'habits'), newHabitData);
+  };
+
+  const updateUserStats = async (updatedHabits) => {
+      const todayKey = getFullDateKey(new Date());
+      const todayScore = updatedHabits.reduce((acc, h) => {
+          return acc + (h.history?.[todayKey] ? 1 : 0);
+      }, 0);
+
+      if (user.uid === 'local-user') {
+          updateLocalProfile({ todayScore, lastActive: Date.now() });
+      } else {
+          const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+          await setDoc(userDocRef, { 
+              todayScore, 
+              lastActive: serverTimestamp(),
+              displayName: user.displayName || 'Anonymous Agent'
+          }, { merge: true });
+      }
   };
 
   const handleToggleHabit = async (habitId, dateKey) => {
@@ -754,42 +1329,61 @@ export default function App() {
       newHistory[dateKey] = true;
     }
 
-    if (user.uid === 'local-user') {
-        const updatedHabits = [...habits];
-        updatedHabits[habitIndex] = { ...habit, history: newHistory };
-        saveToLocal(updatedHabits);
-        return;
-    }
+    let updatedHabits = [...habits];
+    updatedHabits[habitIndex] = { ...habit, history: newHistory };
 
-    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'habits', habitId);
-    await updateDoc(docRef, { history: newHistory });
+    if (user.uid === 'local-user') {
+        saveToLocal(updatedHabits);
+    } else {
+        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'habits', habitId);
+        await updateDoc(docRef, { history: newHistory });
+        setHabits(updatedHabits);
+    }
+    await updateUserStats(updatedHabits);
   };
 
   const handleUpdateField = async (habitId, field, value) => {
      if (!user) return;
+     const updatedHabits = habits.map(h => 
+       h.id === habitId ? { ...h, [field]: value } : h
+     );
+     setHabits(updatedHabits);
 
      if (user.uid === 'local-user') {
-        const updatedHabits = habits.map(h => 
-            h.id === habitId ? { ...h, [field]: value } : h
-        );
-        saveToLocal(updatedHabits);
-        return;
+       saveToLocal(updatedHabits);
+       return;
      }
-
      const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'habits', habitId);
-     await updateDoc(docRef, { [field]: value });
+     updateDoc(docRef, { [field]: value }).catch(e => console.error("Save failed", e));
   };
 
   const handleDeleteHabit = async (habitId) => {
-    if (!user || !confirm('Are you sure you want to delete this habit? History will be lost.')) return;
-    
+    const updatedHabits = habits.filter(h => h.id !== habitId);
+    setHabits(updatedHabits);
+
     if (user.uid === 'local-user') {
-        const updatedHabits = habits.filter(h => h.id !== habitId);
         saveToLocal(updatedHabits);
+        updateUserStats(updatedHabits);
         return;
     }
 
-    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'habits', habitId));
+    try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'habits', habitId));
+        updateUserStats(updatedHabits);
+    } catch (e) {
+        console.error("Delete failed", e);
+        alert("Failed to delete. Check connection.");
+    }
+  };
+
+  const handleJoinSquad = async (squadId) => {
+      if (!user) return;
+      if (user.uid === 'local-user') {
+          updateLocalProfile({ squadId });
+          return;
+      }
+      const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+      await setDoc(userDocRef, { squadId }, { merge: true });
   };
 
   const changeMonth = (delta) => {
@@ -797,189 +1391,128 @@ export default function App() {
     setCurrentDate(newDate);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // Check if firebase config is present
+  const isConfigured = firebaseConfig.apiKey !== "PLACEHOLDER";
 
-  if (loading) return (
-    <div className="h-screen w-full flex items-center justify-center bg-slate-900 text-slate-400 font-medium">
-      <div className="animate-pulse flex flex-col items-center gap-4">
-         <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl"></div>
-         Loading Command Center...
-      </div>
-    </div>
-  );
-
-  // Show Login Screen if not authenticated
   if (!user) {
-    return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} />;
+    return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} isConfigured={isConfigured} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans flex flex-col">
-      
+    <div className="min-h-screen bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black">
+      <NewHabitModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleAddHabit}
+      />
+
       {/* Navbar */}
-      <nav className="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50 print:hidden">
+      <nav className="bg-zinc-900/80 backdrop-blur-lg border-b border-zinc-800 p-4 sticky top-0 z-50 print:hidden">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           
-          {/* Logo */}
-          <div className="flex items-center gap-3 z-50 relative">
-             <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center font-black text-lg shadow-lg">M</div>
+          <div className="flex items-center gap-3 z-50 relative group cursor-pointer" onClick={() => setView('main')}>
+             <div className="w-10 h-10 bg-gradient-to-tr from-lime-400 to-emerald-500 rounded-xl flex items-center justify-center font-black text-xl shadow-[0_0_20px_rgba(163,230,53,0.3)] text-black transform group-hover:rotate-12 transition-transform duration-300">M</div>
              <div className="hidden sm:block">
-                <h1 className="font-bold text-lg leading-tight tracking-tight">Tracker</h1>
+                <h1 className="font-black text-xl leading-none tracking-tighter">TRACKER<span className="text-lime-400">.OS</span></h1>
+                <p className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] uppercase">Supreme Edition</p>
              </div>
           </div>
 
-          {/* Desktop Menu */}
-          <div className="hidden md:flex items-center gap-2 bg-slate-800 p-1 rounded-lg">
-             {['tracker', 'dashboard', 'analog'].map((v) => (
-                <button 
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === v ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                >
-                  {v === 'tracker' && <Layout size={16} />}
-                  {v === 'dashboard' && <BarChart2 size={16} />}
-                  {v === 'analog' && <Printer size={16} />}
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
-                </button>
-             ))}
+          <div className="flex items-center gap-1 bg-black p-1 rounded-xl border border-zinc-800 overflow-x-auto scrollbar-hide">
+             <button 
+                onClick={() => setView('main')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${view === 'main' ? 'bg-zinc-800 text-lime-400 shadow-sm' : 'text-zinc-500 hover:text-white'}`}
+              >
+                <Layout size={16} /> <span className="hidden md:inline">DASHBOARD</span>
+              </button>
+              <button 
+                onClick={() => setView('squad')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${view === 'squad' ? 'bg-zinc-800 text-lime-400 shadow-sm' : 'text-zinc-500 hover:text-white'}`}
+              >
+                <Users size={16} /> <span className="hidden md:inline">SQUAD</span>
+              </button>
           </div>
 
-          {/* Right Controls */}
           <div className="flex items-center gap-4">
-             <div className="flex items-center bg-slate-800 rounded-lg p-1">
-                <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-700 rounded text-slate-300"><ChevronLeft size={16}/></button>
-                <span className="px-3 text-sm font-medium min-w-[80px] text-center hidden sm:block">
-                    {currentDate.toLocaleString('default', { month: 'short', year: 'numeric' })}
+             {(installPrompt || isIOS) && (
+                 <button onClick={handleInstallApp} className="flex items-center gap-2 text-xs font-bold bg-lime-400 text-black px-3 py-1.5 rounded-lg hover:bg-lime-300">
+                     <Download size={14}/> <span className="hidden sm:inline">Install App</span>
+                 </button>
+             )}
+
+             <div className="flex items-center bg-zinc-900 rounded-lg p-1 border border-zinc-800 hidden sm:flex">
+                <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-lime-400 transition-colors"><ChevronLeft size={16}/></button>
+                <span className="px-3 text-sm font-bold min-w-[80px] text-center text-zinc-200">
+                   {currentDate.toLocaleString('default', { month: 'short', year: 'numeric' }).toUpperCase()}
                 </span>
-                <span className="px-2 text-sm font-medium sm:hidden">
-                    {currentDate.toLocaleString('default', { month: 'short' })}
-                </span>
-                <button onClick={() => changeMonth(1)} className="p-1 hover:bg-slate-700 rounded text-slate-300"><ChevronRight size={16}/></button>
+                <button onClick={() => changeMonth(1)} className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-lime-400 transition-colors"><ChevronRight size={16}/></button>
              </div>
              
              <button 
                 onClick={handleLogout}
-                className="p-2 text-slate-400 hover:text-white transition-colors"
+                className="p-2 text-zinc-500 hover:text-red-500 transition-colors"
                 title="Sign Out"
              >
                 <LogOut size={20} />
              </button>
-
-             <button 
-                className="md:hidden text-slate-300"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-             >
-                {mobileMenuOpen ? <X /> : <Menu />}
-             </button>
           </div>
         </div>
-
-        {/* Mobile Menu Dropdown */}
-        {mobileMenuOpen && (
-           <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-t border-slate-800 p-4 flex flex-col gap-2 shadow-xl animate-in slide-in-from-top-5">
-              {['tracker', 'dashboard', 'analog'].map((v) => (
-                <button 
-                  key={v}
-                  onClick={() => { setView(v); setMobileMenuOpen(false); }}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-all ${view === v ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
-                >
-                  {v === 'tracker' && <Layout size={18} />}
-                  {v === 'dashboard' && <BarChart2 size={18} />}
-                  {v === 'analog' && <Printer size={18} />}
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
-                </button>
-             ))}
-           </div>
-        )}
       </nav>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-2 md:p-6 print:p-0 print:max-w-none overflow-hidden flex flex-col">
-        
-        {view === 'tracker' && (
-          <div className="flex-1 min-h-0 animate-in fade-in zoom-in-95 duration-300 flex flex-col">
-             <TrackerView 
-                habits={habits}
-                currentDate={currentDate}
-                onToggle={handleToggleHabit}
-                onAdd={handleAddHabit}
-                onDelete={handleDeleteHabit}
-                onUpdateField={handleUpdateField}
-             />
-          </div>
-        )}
-
-        {view === 'dashboard' && (
-          <div className="py-2 overflow-y-auto custom-scrollbar">
-             <AnalyticsView habits={habits} currentDate={currentDate} />
-          </div>
-        )}
-
-        {view === 'analog' && (
-          <div className="flex flex-col items-center gap-6 animate-in slide-in-from-bottom-4 duration-500 overflow-y-auto pb-10">
-             <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 px-6 py-4 rounded-xl flex flex-col sm:flex-row items-center gap-4 w-full max-w-[1100px] print:hidden shadow-sm">
-                <div className="bg-indigo-100 p-2 rounded-full">
-                  <Printer size={24} className="text-indigo-600"/>
+      <main className="flex-1 max-w-7xl mx-auto w-full p-2 md:p-6 print:p-0 print:max-w-none flex flex-col">
+        {view === 'main' && (
+          <div className="flex-1 animate-in fade-in zoom-in-95 duration-500 flex flex-col gap-8 pb-20">
+             <section>
+                <div className="flex items-center gap-2 mb-4 px-2">
+                   <Flame className="text-orange-500 fill-orange-500" size={20} />
+                   <h2 className="text-xl font-black tracking-tight text-white">PERFORMANCE</h2>
                 </div>
-                <div className="flex-1 text-center sm:text-left">
-                  <h3 className="font-bold text-lg">Print Mode Ready</h3>
-                  <p className="text-sm text-indigo-700">
-                    Optimized for A4/Letter. Hide headers and footers in your print settings for best results.
-                  </p>
+                <AnalyticsView habits={habits} currentDate={currentDate} />
+             </section>
+
+             <section>
+                <div className="flex items-center gap-2 mb-4 px-2">
+                   <Zap className="text-yellow-400 fill-yellow-400" size={20} />
+                   <h2 className="text-xl font-black tracking-tight text-white">ACTIVE PROTOCOLS</h2>
                 </div>
-                <button 
-                  onClick={handlePrint}
-                  className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg transform hover:-translate-y-0.5 duration-200"
-                >
-                  Print PDF
-                </button>
-             </div>
-             <AnalogView habits={habits} currentDate={currentDate} />
+                <TrackerView 
+                  habits={habits}
+                  currentDate={currentDate}
+                  onToggle={handleToggleHabit}
+                  onOpenNewHabit={() => setIsModalOpen(true)}
+                  onDelete={handleDeleteHabit}
+                  onUpdateField={handleUpdateField}
+                  strictMode={strictMode}
+                  toggleStrictMode={toggleStrictMode}
+                />
+             </section>
           </div>
         )}
 
+        {view === 'squad' && (
+            <SquadView 
+                user={user}
+                userProfile={userProfile}
+                onJoinSquad={handleJoinSquad}
+            />
+        )}
       </main>
       
-      {/* Global Styles */}
       <style>{`
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            .print-container, .print-container * {
-                visibility: visible;
-            }
-            .print-container {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                margin: 0;
-                padding: 0;
-                box-shadow: none;
-                border: none;
-            }
-            nav, .no-print {
-                display: none !important;
-            }
-        }
-        
         /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f5f9; 
+            background: #18181b; 
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1; 
+            background: #3f3f46; 
             border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8; 
+            background: #a3e635; 
         }
       `}</style>
     </div>
