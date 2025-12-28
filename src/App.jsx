@@ -39,7 +39,25 @@ import {
   ShieldAlert, 
   Medal, 
   Sparkles,
-  Share
+  Share,
+  Camera,
+  Star,
+  Award,
+  Moon,
+  Briefcase,
+  GraduationCap,
+  Sword,
+  Book,
+  ArrowDown,
+  Clock,
+  Sun,
+  Sunset,
+  Sunrise,
+  Repeat,
+  Skull,
+  ZapOff,
+  BookOpen,
+  HelpCircle
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -109,6 +127,66 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'me-supreme-tracker';
 
+// --- Archetypes Configuration ---
+const ARCHETYPES = {
+  MONK: { 
+    id: 'monk', 
+    title: 'The Monk', 
+    problem: "Distraction & Anxiety",
+    solution: "Clarity & Peace",
+    icon: Moon, 
+    color: 'text-indigo-400', 
+    manifesto: "I seek clarity in a chaotic world. Stillness is my strength.",
+    defaults: [
+      { name: "Meditation (20m)", goal: 30, timeOfDay: 'morning' },
+      { name: "Digital Detox", goal: 30, timeOfDay: 'evening' },
+      { name: "Reading (10 pages)", goal: 30, timeOfDay: 'anytime' }
+    ]
+  },
+  WARRIOR: { 
+    id: 'warrior', 
+    title: 'The Warrior', 
+    problem: "Weakness & Lethargy",
+    solution: "Strength & Power",
+    icon: Sword, 
+    color: 'text-red-500', 
+    manifesto: "I do not negotiate with myself. Pain is weakness leaving the body.",
+    defaults: [
+      { name: "Heavy Lifting", goal: 20, timeOfDay: 'morning' },
+      { name: "Protein (150g)", goal: 30, timeOfDay: 'anytime' },
+      { name: "Sleep 8h", goal: 30, timeOfDay: 'evening' }
+    ]
+  },
+  FOUNDER: { 
+    id: 'founder', 
+    title: 'The Founder', 
+    problem: "Stagnation & Poverty",
+    solution: "Growth & Wealth",
+    icon: Briefcase, 
+    color: 'text-emerald-400', 
+    manifesto: "I build the future. Every second is an investment.",
+    defaults: [
+      { name: "Deep Work (4h)", goal: 25, timeOfDay: 'morning' },
+      { name: "Outreach", goal: 30, timeOfDay: 'afternoon' },
+      { name: "Review KPIs", goal: 30, timeOfDay: 'evening' }
+    ]
+  },
+  SCHOLAR: { 
+    id: 'scholar', 
+    title: 'The Scholar', 
+    problem: "Ignorance & Confusion",
+    solution: "Knowledge & Wisdom",
+    icon: GraduationCap, 
+    color: 'text-yellow-400', 
+    manifesto: "I am a perpetual learner. Knowledge is my compounding asset.",
+    defaults: [
+      { name: "Study Session", goal: 25, timeOfDay: 'morning' },
+      { name: "Read Research", goal: 30, timeOfDay: 'afternoon' },
+      { name: "No Procrastination", goal: 30, timeOfDay: 'anytime' }
+    ]
+  }
+};
+
 // --- Utility Functions ---
 const getDaysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 const getDateKey = (date, day) => {
@@ -137,7 +215,6 @@ const calculateStreak = (history) => {
         if (history && history[key]) {
             streak++;
         } else if (i === 0) {
-            // If today is not done, check yesterday before breaking streak
             continue; 
         } else {
             break;
@@ -146,7 +223,7 @@ const calculateStreak = (history) => {
     return streak;
 };
 
-// Determine Rank based on Total XP (Total Habits Completed)
+// Determine Rank based on Total XP
 const getRankInfo = (totalCompleted) => {
     if (totalCompleted < 10) return { title: "Drifter", next: 10, color: "text-zinc-500", progress: (totalCompleted / 10) * 100 };
     if (totalCompleted < 50) return { title: "Novice", next: 50, color: "text-blue-400", progress: ((totalCompleted - 10) / 40) * 100 };
@@ -157,14 +234,368 @@ const getRankInfo = (totalCompleted) => {
     return { title: "Supreme", next: 10000, color: "text-yellow-400", progress: 100 };
 };
 
+// Define Achievements
+const ACHIEVEMENTS = [
+    { id: 'first_blood', name: 'First Blood', desc: 'Complete your first habit', icon: Zap, condition: (habits) => habits.some(h => Object.keys(h.history).length > 0) },
+    { id: 'streak_7', name: 'Week Warrior', desc: 'Reach a 7 day streak', icon: Flame, condition: (habits) => habits.some(h => calculateStreak(h.history) >= 7) },
+    { id: 'streak_30', name: 'Iron Will', desc: 'Reach a 30 day streak', icon: ShieldCheck, condition: (habits) => habits.some(h => calculateStreak(h.history) >= 30) },
+    { id: 'mastery', name: 'Protocol Master', desc: 'Complete 100 total reps', icon: Trophy, condition: (habits) => {
+        const total = habits.reduce((acc, h) => acc + Object.keys(h.history).length, 0);
+        return total >= 100;
+    }},
+    { id: 'dedication', name: 'Full House', desc: '5 Active Habits', icon: Grid, condition: (habits) => habits.length >= 5 }
+];
+
 // --- Components ---
 
-// 0. New Habit Modal (Discipline vs Motivation)
+// NEW: Reflection Modal (Failure Management)
+const ReflectionModal = ({ isOpen, onClose, onRecover }) => {
+    if (!isOpen) return null;
+    const reasons = ["Sleep / Fatigue", "Stress / Anxiety", "Travel", "Forgot", "Just Lazy"];
+
+    return (
+        <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-zinc-900 border border-red-500/30 w-full max-w-md rounded-3xl p-6 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+                <div className="text-center mb-6">
+                    <div className="mx-auto w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                        <Skull size={32} className="text-red-500" />
+                    </div>
+                    <h2 className="text-2xl font-black text-white mb-2">PROTOCOL BREACH DETECTED</h2>
+                    <p className="text-zinc-400 text-sm">Honesty is the first step to recovery. What caused this failure?</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mb-6">
+                    {reasons.map((r) => (
+                        <button key={r} className="p-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-300 transition-colors border border-zinc-700 hover:border-zinc-500">
+                            {r}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-zinc-500">FORGIVENESS TOKENS</span>
+                        <span className="text-xs font-mono text-lime-400">1 AVAILABLE</span>
+                    </div>
+                    <button 
+                        onClick={onRecover}
+                        className="w-full py-3 bg-lime-400/10 border border-lime-400/50 text-lime-400 font-bold rounded-lg hover:bg-lime-400 hover:text-black transition-all flex items-center justify-center gap-2"
+                    >
+                        <Repeat size={16} /> USE TOKEN & REPAIR STREAK
+                    </button>
+                </div>
+
+                <button onClick={onClose} className="w-full py-3 text-zinc-500 text-xs font-bold hover:text-white">
+                    ACCEPT FAILURE (LOSE XP)
+                </button>
+            </div>
+        </div>
+    )
+}
+
+// NEW: User Guide / Manual Component
+const UserGuide = ({ isOpen, onClose }) => {
+    const [page, setPage] = useState(0);
+
+    if (!isOpen) return null;
+
+    const pages = [
+        {
+            title: "WELCOME TO THE GRID",
+            icon: Grid,
+            color: "text-lime-400",
+            content: "You are now operating on Tracker.OS. This is not a todo list. It is a visual database of your consistency. Every box you fill adds to your momentum."
+        },
+        {
+            title: "TRACKING PROTOCOLS",
+            icon: Check,
+            color: "text-cyan-400",
+            content: "Click a box on 'The Grid' to mark a habit as complete. Dark cells are future days (locked). Red cells are missed days. Maintain the streak to earn XP."
+        },
+        {
+            title: "XP & RANKING",
+            icon: Trophy,
+            color: "text-yellow-400",
+            content: "Every completion grants XP. As you gain XP, your Rank increases from 'Drifter' to 'Supreme'. Unlock badges and prove your discipline."
+        },
+        {
+            title: "SQUAD SYNC",
+            icon: Users,
+            color: "text-purple-400",
+            content: "Don't fight alone. Go to the Squad tab to create a family or team leaderboard. Share your code to compete live with friends."
+        }
+    ];
+
+    const current = pages[page];
+
+    return (
+        <div className="fixed inset-0 z-[90] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-zinc-900 w-full max-w-lg rounded-3xl border border-zinc-800 overflow-hidden shadow-2xl relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X size={24}/></button>
+                
+                <div className="h-2 bg-zinc-800 w-full">
+                    <div 
+                        className="h-full bg-lime-400 transition-all duration-300" 
+                        style={{ width: `${((page + 1) / pages.length) * 100}%`}}
+                    ></div>
+                </div>
+
+                <div className="p-8 text-center min-h-[400px] flex flex-col items-center justify-center">
+                    <div className={`w-20 h-20 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 border border-zinc-700 shadow-xl ${current.color}`}>
+                        <current.icon size={40} />
+                    </div>
+                    <h2 className="text-2xl font-black text-white mb-4 tracking-tight">{current.title}</h2>
+                    <p className="text-zinc-400 text-sm leading-relaxed max-w-sm mb-8">{current.content}</p>
+
+                    <div className="flex items-center gap-4 w-full">
+                        {page > 0 && (
+                            <button 
+                                onClick={() => setPage(p => p - 1)}
+                                className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-400 font-bold hover:bg-zinc-700 transition-colors"
+                            >
+                                BACK
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => {
+                                if (page < pages.length - 1) {
+                                    setPage(p => p + 1);
+                                } else {
+                                    onClose();
+                                }
+                            }}
+                            className="flex-1 py-3 rounded-xl bg-lime-400 text-black font-black hover:bg-lime-300 transition-colors"
+                        >
+                            {page === pages.length - 1 ? "ENTER SYSTEM" : "NEXT"}
+                        </button>
+                    </div>
+                </div>
+                <div className="p-4 bg-zinc-950 border-t border-zinc-800 text-center">
+                    <p className="text-[10px] text-zinc-600 font-mono">USER MANUAL PAGE {page + 1} / {pages.length}</p>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// NEW: Onboarding Modal
+const OnboardingModal = ({ onComplete }) => {
+    const [step, setStep] = useState(1);
+    const [selectedArchetype, setSelectedArchetype] = useState(null);
+
+    const handleSelect = (id) => {
+        setSelectedArchetype(id);
+        setStep(2);
+    };
+
+    const handleCommit = () => {
+        const arch = ARCHETYPES[selectedArchetype.toUpperCase()];
+        onComplete(selectedArchetype, arch.defaults);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[70] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4">
+             <div className="max-w-4xl w-full bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl flex flex-col md:flex-row h-[85vh] animate-in zoom-in-95 duration-300">
+                 <div className="w-full md:w-1/3 bg-zinc-950 p-8 flex flex-col justify-between border-r border-zinc-800">
+                      <div>
+                          <div className="flex items-center gap-2 mb-6">
+                              <div className="w-8 h-8 bg-lime-400 rounded-lg flex items-center justify-center font-black text-black">M</div>
+                              <span className="font-bold text-white tracking-tight">TRACKER.OS</span>
+                          </div>
+                          <h1 className="text-3xl font-black text-white mb-4 leading-tight">
+                              {step === 1 ? "IDENTIFY YOUR MISSION" : "CONFIRM PROTOCOL"}
+                          </h1>
+                          <p className="text-zinc-400 text-sm leading-relaxed">
+                              {step === 1 
+                                ? "What problem are you trying to solve? Select the archetype that aligns with your current goal."
+                                : `The ${ARCHETYPES[selectedArchetype?.toUpperCase()]?.title} follows a strict code. Are you ready to commit?`
+                              }
+                          </p>
+                      </div>
+                      <div className="space-y-4">
+                          <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                              <div className={`h-full bg-lime-400 transition-all duration-500 ${step === 1 ? 'w-1/2' : 'w-full'}`}></div>
+                          </div>
+                          <p className="text-xs text-zinc-500 font-mono text-right">STEP {step} / 2</p>
+                      </div>
+                 </div>
+
+                 <div className="flex-1 p-8 overflow-y-auto bg-black custom-scrollbar">
+                     {step === 1 ? (
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {Object.values(ARCHETYPES).map((arch) => (
+                                 <button 
+                                    key={arch.id}
+                                    onClick={() => handleSelect(arch.id)}
+                                    className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-lime-500/50 transition-all text-left group relative overflow-hidden flex flex-col h-full"
+                                 >
+                                      <div className={`absolute inset-0 bg-gradient-to-br from-transparent to-black/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}></div>
+                                      <div className="flex justify-between items-start mb-4">
+                                         <div className={`w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center ${arch.color}`}>
+                                             <arch.icon size={24} />
+                                         </div>
+                                         <div className="bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                                             {arch.title} Pack
+                                         </div>
+                                      </div>
+                                      
+                                      <h3 className="text-xl font-bold text-white mb-1">{arch.solution}</h3>
+                                      <p className="text-xs text-red-400/80 font-mono mb-4">Fixes: {arch.problem}</p>
+                                      <p className="text-xs text-zinc-500 italic mb-4 flex-grow">"{arch.manifesto}"</p>
+                                      
+                                      <div className="border-t border-zinc-800 pt-4 mt-auto">
+                                         <p className="text-[10px] uppercase font-bold text-zinc-600 mb-2">Includes:</p>
+                                         <ul className="space-y-1">
+                                             {arch.defaults.map((h, i) => (
+                                                 <li key={i} className="text-xs text-zinc-400 flex items-center gap-2">
+                                                     <Check size={10} className="text-lime-500"/> {h.name}
+                                                 </li>
+                                             ))}
+                                         </ul>
+                                      </div>
+                                 </button>
+                             ))}
+                         </div>
+                     ) : (
+                         <div className="h-full flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-right">
+                             <div className={`w-24 h-24 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(0,0,0,0.5)]`}>
+                                 {(() => {
+                                     const Icon = ARCHETYPES[selectedArchetype.toUpperCase()].icon;
+                                     return <Icon size={48} className={ARCHETYPES[selectedArchetype.toUpperCase()].color} />;
+                                 })()}
+                             </div>
+                             <h2 className="text-2xl font-black text-white mb-2">INITIALIZING...</h2>
+                             <p className="text-zinc-400 max-w-md mb-8">
+                                 We are about to install 3 core habits into your operating system.
+                             </p>
+                             <div className="flex gap-4">
+                                 <button onClick={() => setStep(1)} className="px-6 py-3 rounded-xl font-bold text-zinc-500 hover:text-white transition-colors">BACK</button>
+                                 <button 
+                                    onClick={handleCommit}
+                                    className="px-8 py-3 bg-lime-400 text-black font-black rounded-xl hover:bg-lime-300 hover:scale-105 transition-all shadow-[0_0_20px_rgba(163,230,53,0.3)]"
+                                 >
+                                     BEGIN PROTOCOL
+                                 </button>
+                             </div>
+                         </div>
+                     )}
+                 </div>
+             </div>
+        </div>
+    )
+}
+
+// NEW: System Online / First Win Overlay
+const SystemOnlineOverlay = () => {
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300 pointer-events-none">
+             <div className="text-center">
+                 <div className="text-6xl mb-4 animate-bounce">🏆</div>
+                 <h1 className="text-4xl md:text-6xl font-black text-lime-400 tracking-tighter mb-2 animate-in zoom-in duration-300">SYSTEM ONLINE</h1>
+                 <p className="text-white font-mono text-xl tracking-widest mb-8">PROTOCOL INITIATED</p>
+                 <div className="bg-zinc-800 text-lime-400 px-6 py-2 rounded-full font-bold inline-block border border-lime-400/30 shadow-[0_0_30px_rgba(163,230,53,0.4)]">
+                     +100 XP ACQUIRED
+                 </div>
+             </div>
+        </div>
+    )
+}
+
+// Share Modal (Flex Card)
+const ShareModal = ({ isOpen, onClose, rankInfo, totalXP, habits }) => {
+    if (!isOpen) return null;
+
+    const topHabit = [...habits].sort((a, b) => calculateStreak(b.history) - calculateStreak(a.history))[0];
+    const streak = topHabit ? calculateStreak(topHabit.history) : 0;
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+            <div className="relative w-full max-w-sm">
+                <button onClick={onClose} className="absolute -top-12 right-0 text-white hover:text-red-500"><X size={24}/></button>
+                
+                {/* The Card to Screenshot */}
+                <div className="bg-zinc-900 border-4 border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-lime-400 via-emerald-500 to-cyan-500"></div>
+                    
+                    {/* Header */}
+                    <div className="p-8 pb-4 text-center">
+                        <h2 className="text-3xl font-black text-white tracking-tighter mb-1">TRACKER<span className="text-lime-400">.OS</span></h2>
+                        <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-[0.3em]">Status Report</p>
+                    </div>
+
+                    {/* Rank */}
+                    <div className="px-8 py-4 flex flex-col items-center">
+                        <Medal size={64} className="text-yellow-400 mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]" />
+                        <h1 className={`text-4xl font-black ${rankInfo.color} uppercase tracking-tighter mb-2`}>{rankInfo.title}</h1>
+                        <div className="bg-zinc-800 px-4 py-1 rounded-full border border-zinc-700">
+                            <span className="text-white font-mono font-bold">{totalXP} XP EARNED</span>
+                        </div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-px bg-zinc-800 mt-6 border-t border-zinc-800">
+                        <div className="bg-zinc-900 p-6 text-center">
+                            <p className="text-zinc-500 text-[9px] uppercase font-bold tracking-widest mb-1">Top Streak</p>
+                            <p className="text-3xl font-black text-white flex items-center justify-center gap-1">
+                                {streak} <Flame size={20} className="text-orange-500 fill-orange-500"/>
+                            </p>
+                        </div>
+                        <div className="bg-zinc-900 p-6 text-center">
+                            <p className="text-zinc-500 text-[9px] uppercase font-bold tracking-widest mb-1">Active Protocols</p>
+                            <p className="text-3xl font-black text-white">{habits.length}</p>
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-black/50 text-center">
+                        <p className="text-[9px] text-zinc-600 font-mono">GENERATED BY TRACKER.OS</p>
+                    </div>
+                </div>
+
+                <div className="mt-6 text-center">
+                      <p className="text-zinc-400 text-xs mb-3">Take a screenshot to share</p>
+                      <button onClick={onClose} className="bg-white text-black font-bold py-3 px-8 rounded-xl hover:bg-zinc-200 transition-colors w-full">
+                          DONE
+                      </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Achievement Modal
+const AchievementsView = ({ habits, totalXP }) => {
+    return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            {ACHIEVEMENTS.map(ach => {
+                const isUnlocked = ach.condition(habits);
+                return (
+                    <div key={ach.id} className={`p-4 rounded-2xl border transition-all relative overflow-hidden group
+                        ${isUnlocked ? 'bg-zinc-900 border-lime-500/30' : 'bg-black border-zinc-800 opacity-60'}
+                    `}>
+                        {isUnlocked && <div className="absolute top-0 left-0 w-full h-1 bg-lime-500"></div>}
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className={`p-2 rounded-lg ${isUnlocked ? 'bg-lime-400/10 text-lime-400' : 'bg-zinc-800 text-zinc-600'}`}>
+                                <ach.icon size={18} />
+                            </div>
+                            {isUnlocked && <Check size={14} className="text-lime-400 absolute top-3 right-3" />}
+                        </div>
+                        <h4 className={`font-bold text-xs ${isUnlocked ? 'text-white' : 'text-zinc-500'}`}>{ach.name}</h4>
+                        <p className="text-[10px] text-zinc-500 leading-tight mt-1">{ach.desc}</p>
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
+// 0. New Habit Modal (Updated with Time of Day)
 const NewHabitModal = ({ isOpen, onClose, onConfirm }) => {
     const [name, setName] = useState('');
     const [goal, setGoal] = useState('');
     const [mode, setMode] = useState(null); // 'motivation' | 'discipline'
     const [showLecture, setShowLecture] = useState(false);
+    const [timeOfDay, setTimeOfDay] = useState('anytime');
 
     if (!isOpen) return null;
 
@@ -178,12 +609,12 @@ const NewHabitModal = ({ isOpen, onClose, onConfirm }) => {
 
     const handleSubmit = () => {
         if (!name) return;
-        onConfirm(name, parseInt(goal) || 0);
-        // Reset
+        onConfirm(name, parseInt(goal) || 0, timeOfDay);
         setName('');
         setGoal('');
         setMode(null);
         setShowLecture(false);
+        setTimeOfDay('anytime');
         onClose();
     };
 
@@ -207,6 +638,29 @@ const NewHabitModal = ({ isOpen, onClose, onConfirm }) => {
                                 placeholder="e.g. 5AM Run"
                             />
                         </div>
+                        
+                        {/* Time of Day Context */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase font-bold text-zinc-400 tracking-widest">Time Constraint</label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { id: 'morning', icon: Sunrise, label: 'AM' },
+                                    { id: 'afternoon', icon: Sun, label: 'Mid' },
+                                    { id: 'evening', icon: Sunset, label: 'PM' },
+                                    { id: 'anytime', icon: Clock, label: 'Any' },
+                                ].map(t => (
+                                    <button 
+                                        key={t.id}
+                                        onClick={() => setTimeOfDay(t.id)}
+                                        className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all ${timeOfDay === t.id ? 'bg-zinc-800 border-lime-400 text-lime-400' : 'bg-black border-zinc-700 text-zinc-500'}`}
+                                    >
+                                        <t.icon size={16} />
+                                        <span className="text-[10px] font-bold mt-1">{t.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="space-y-2">
                             <label className="text-[10px] uppercase font-bold text-zinc-400 tracking-widest">Monthly Target (Days)</label>
                             <input 
@@ -452,35 +906,35 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
         return (
             <div className="flex flex-col items-center justify-center h-full min-h-[500px] animate-in fade-in slide-in-from-bottom-4 p-4">
                 <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-md w-full text-center relative overflow-hidden shadow-2xl">
-                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-lime-400 to-cyan-500"></div>
-                     <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-lime-400 to-cyan-500"></div>
+                      <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                         <Users size={32} className="text-lime-400" />
-                     </div>
-                     <h2 className="text-3xl font-black text-white mb-2 tracking-tight">SQUAD PROTOCOL</h2>
-                     <p className="text-zinc-400 mb-8 text-sm">Synchronize with family or friends. Compete for dominance.</p>
-                     
-                     {user.uid === 'local-user' && (
-                         <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-500 text-xs font-bold uppercase tracking-wide">
-                             ⚠ Local Mode Active: You will only see your own stats. Sign in with Google to sync with others.
-                         </div>
-                     )}
+                      </div>
+                      <h2 className="text-3xl font-black text-white mb-2 tracking-tight">SQUAD PROTOCOL</h2>
+                      <p className="text-zinc-400 mb-8 text-sm">Synchronize with family or friends. Compete for dominance.</p>
+                      
+                      {user.uid === 'local-user' && (
+                          <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-500 text-xs font-bold uppercase tracking-wide">
+                              ⚠ Local Mode Active: You will only see your own stats. Sign in with Google to sync with others.
+                          </div>
+                      )}
 
-                     <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-xl mb-6">
-                         <button 
+                      <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-xl mb-6">
+                          <button 
                             onClick={() => setActiveTab('join')}
                             className={`py-2 text-xs font-bold uppercase rounded-lg transition-all ${activeTab === 'join' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
-                         >
-                             Join Squad
-                         </button>
-                         <button 
+                          >
+                              Join Squad
+                          </button>
+                          <button 
                             onClick={() => setActiveTab('create')}
                             className={`py-2 text-xs font-bold uppercase rounded-lg transition-all ${activeTab === 'create' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
-                         >
-                             Create Squad
-                         </button>
-                     </div>
+                          >
+                              Create Squad
+                          </button>
+                      </div>
 
-                     {activeTab === 'join' ? (
+                      {activeTab === 'join' ? (
                         <form onSubmit={handleJoin} className="space-y-4 animate-in fade-in zoom-in-95">
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest mb-1 block text-left">Enter Access Code</label>
@@ -501,7 +955,7 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
                                 {user.uid === 'local-user' ? 'ACTIVATE SOLO SQUAD' : 'JOIN SQUAD'} <ArrowRight size={18} strokeWidth={3}/>
                             </button>
                         </form>
-                     ) : (
+                      ) : (
                         <div className="space-y-4 animate-in fade-in zoom-in-95">
                             <div className="bg-black/50 p-4 rounded-xl border border-zinc-800/50">
                                 <p className="text-zinc-400 text-xs mb-2">Initialize a new secure channel for your team.</p>
@@ -517,7 +971,7 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
                                 GENERATE NEW SQUAD <Plus size={18} strokeWidth={3}/>
                             </button>
                         </div>
-                     )}
+                      )}
                 </div>
             </div>
         );
@@ -549,6 +1003,23 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
                     <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                     <span className="text-zinc-400 text-xs">Active Agents: </span>
                     <span className="text-white font-bold">{members.length}</span>
+                </div>
+            </div>
+
+            {/* Squad Engagement Addon */}
+            <div className="bg-gradient-to-r from-zinc-900 to-zinc-950 border-x border-zinc-800 p-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="flex gap-4 items-center">
+                    <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center border border-zinc-700">
+                        <Target className="text-yellow-500" />
+                    </div>
+                    <div>
+                        <h4 className="text-white font-bold text-sm uppercase tracking-wide">Weekly Challenge</h4>
+                        <p className="text-zinc-500 text-xs">Everyone must complete <span className="text-white font-bold">5 Workouts</span> this week.</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-zinc-500">REWARD:</span>
+                    <span className="bg-yellow-500/10 text-yellow-500 px-3 py-1 rounded-full text-xs font-bold border border-yellow-500/20">+500 XP</span>
                 </div>
             </div>
 
@@ -604,8 +1075,8 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
     );
 };
 
-// 1. Digital Tracker (Gen Z Dark Mode)
-const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, strictMode, toggleStrictMode }) => {
+// 1. Digital Tracker (Gen Z Dark Mode) - Updated with TutorialMode prop
+const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, strictMode, toggleStrictMode, tutorialMode, onRepairStreak }) => {
   const daysInMonth = getDaysInMonth(currentDate);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -660,7 +1131,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                 title={strictMode ? "Strict Mode Active: Past days locked" : "Strict Mode Off: Free editing"}
             >
                 {strictMode ? <Lock size={14} /> : <Unlock size={14} />}
-                {strictMode ? "No Cheating On" : "Strict Mode Off"}
+                {strictMode ? "No Cheating" : "Strict Mode Off"}
             </button>
 
             <button 
@@ -699,14 +1170,14 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
               <tr>
                 <td colSpan={daysInMonth + 4} className="p-20 text-center">
                   <div className="flex flex-col items-center justify-center opacity-30 animate-pulse">
-                     <Grid size={48} className="mb-4 text-white"/>
-                     <p className="text-zinc-300 font-bold text-lg">GRID EMPTY</p>
-                     <p className="text-zinc-500 text-sm">Initialize your first protocol to begin.</p>
+                      <Grid size={48} className="mb-4 text-white"/>
+                      <p className="text-zinc-300 font-bold text-lg">GRID EMPTY</p>
+                      <p className="text-zinc-500 text-sm">Initialize your first protocol to begin.</p>
                   </div>
                 </td>
               </tr>
             ) : (
-              habits.map(habit => {
+              habits.map((habit, index) => {
                 const totalCompleted = daysArray.reduce((acc, day) => {
                   return acc + (habit.history?.[getDateKey(currentDate, day)] ? 1 : 0);
                 }, 0);
@@ -715,9 +1186,16 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                 const percent = Math.min(100, Math.round((totalCompleted / effectiveGoal) * 100));
                 const isGoalMet = totalCompleted >= effectiveGoal;
                 const streak = calculateStreak(habit.history);
+                const isFirstHabitTutorial = tutorialMode && index === 0;
+
+                // Time Icon Logic
+                let TimeIcon = Clock;
+                if(habit.timeOfDay === 'morning') TimeIcon = Sunrise;
+                if(habit.timeOfDay === 'afternoon') TimeIcon = Sun;
+                if(habit.timeOfDay === 'evening') TimeIcon = Sunset;
 
                 return (
-                  <tr key={habit.id} className={`border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group`}>
+                  <tr key={habit.id} className={`border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group relative ${isFirstHabitTutorial ? 'bg-lime-900/10' : ''}`}>
                     <td className="p-2 sticky left-0 bg-zinc-900 group-hover:bg-zinc-800/90 z-10 border-r border-zinc-800/50 transition-colors">
                       <div className="flex items-center gap-3 w-full">
                           <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -726,6 +1204,11 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                                  <Flame size={14} className={streak > 0 ? "fill-orange-500 animate-pulse" : "text-zinc-700"} />
                                  <span className={`text-[10px] font-bold ${streak > 0 ? "text-orange-500" : "text-zinc-700"}`}>{streak}</span>
                              </div>
+                             
+                             <div className="text-zinc-600 shrink-0" title={habit.timeOfDay}>
+                                <TimeIcon size={14} />
+                             </div>
+
                              <input 
                                 type="text" 
                                 value={habit.name}
@@ -737,7 +1220,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                       </div>
                     </td>
                     <td className="p-1 text-center border-r border-zinc-800/50">
-                       <input 
+                        <input 
                         type="number" 
                         value={(habit.goal && habit.goal > 0) ? habit.goal : ''}
                         onChange={(e) => onUpdateField(habit.id, 'goal', parseInt(e.target.value) || 0)}
@@ -750,25 +1233,45 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                       const isDone = habit.history?.[dateKey];
                       const isFuture = isFutureDate(day);
                       const isPast = strictMode && !isToday(day) && new Date(currentDate.getFullYear(), currentDate.getMonth(), day) < new Date();
-                      const isDisabled = isFuture || isPast;
+                      const isDisabled = isFuture; // Allow repair on past days via specific action, but general click is disabled if future
+                      
+                      // Tutorial Highlighting Logic
+                      const isTutorialTarget = isFirstHabitTutorial && isToday(day);
 
                       return (
                         <td key={day} className={`p-0 text-center border-r border-zinc-800/30 ${isToday(day) ? 'bg-lime-900/10' : ''} ${isDisabled ? 'bg-black/40' : ''}`}>
                           <button
                             disabled={isDisabled}
-                            onClick={() => onToggle(habit.id, dateKey)}
+                            onClick={() => {
+                                if (isPast && !isDone) {
+                                    onRepairStreak(habit.id, dateKey); // Trigger repair modal
+                                } else {
+                                    onToggle(habit.id, dateKey);
+                                }
+                            }}
                             className={`w-full h-10 md:h-12 flex items-center justify-center transition-all duration-300 relative group/btn
                                 ${isDone ? 'bg-transparent' : 'hover:bg-zinc-800'}
                                 ${isDisabled ? 'cursor-not-allowed opacity-30' : 'cursor-pointer'}
                             `}
                           >
+                            {isTutorialTarget && !isDone && (
+                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center animate-bounce pointer-events-none">
+                                    <span className="text-[9px] bg-lime-400 text-black font-bold px-1 rounded whitespace-nowrap mb-1">START HERE</span>
+                                    <ArrowDown size={12} className="text-lime-400 fill-lime-400"/>
+                                </div>
+                            )}
+
                             {isDone ? (
                                 <div className={`w-6 h-6 rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(163,230,53,0.6)] transform scale-110 transition-transform duration-200
                                     ${isDisabled ? 'bg-zinc-600 grayscale' : 'bg-lime-400 hover:scale-125 hover:rotate-3'}`}>
                                      <Check size={16} strokeWidth={4} className="text-black" />
                                 </div>
                             ) : (
-                                <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isDisabled ? 'bg-zinc-800' : 'bg-zinc-700 group-hover/btn:bg-zinc-600'}`}></div>
+                                <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isTutorialTarget ? 'bg-lime-500 animate-ping' : (isDisabled ? 'bg-zinc-800' : 'bg-zinc-700 group-hover/btn:bg-zinc-600')}`}>
+                                    {isPast && !isDone && (
+                                        <div className="opacity-0 group-hover/btn:opacity-100 absolute inset-0 flex items-center justify-center text-[8px] text-red-500 font-bold">X</div>
+                                    )}
+                                </div>
                             )}
                           </button>
                         </td>
@@ -805,7 +1308,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
 };
 
 // 2. Analytics Dashboard (Gen Z Dark Mode)
-const AnalyticsView = ({ habits, currentDate }) => {
+const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggleHardcore }) => {
   const daysInMonth = getDaysInMonth(currentDate);
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -871,14 +1374,19 @@ const AnalyticsView = ({ habits, currentDate }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 lg:gap-6 animate-fade-in mb-6">
       
-      {/* 0. NEW: Rank Card */}
+      {/* 0. Rank Card with Share Button */}
       <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <Medal size={120} className="text-yellow-500" />
          </div>
-         <div>
-             <h3 className="text-zinc-500 font-bold mb-1 uppercase text-[10px] tracking-[0.2em]">Current Rank</h3>
-             <h2 className={`text-4xl font-black ${rankInfo.color} tracking-tighter drop-shadow-lg`}>{rankInfo.title.toUpperCase()}</h2>
+         <div className="flex justify-between items-start">
+             <div>
+                <h3 className="text-zinc-500 font-bold mb-1 uppercase text-[10px] tracking-[0.2em]">Current Rank</h3>
+                <h2 className={`text-4xl font-black ${rankInfo.color} tracking-tighter drop-shadow-lg`}>{rankInfo.title.toUpperCase()}</h2>
+             </div>
+             <button onClick={onOpenShare} className="p-2 bg-zinc-800 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-700 transition-all" title="Share Status">
+                 <Camera size={20} />
+             </button>
          </div>
          
          <div className="mt-8">
@@ -896,48 +1404,42 @@ const AnalyticsView = ({ habits, currentDate }) => {
          </div>
       </div>
 
-      {/* 1. Overall Score (Donut) */}
-      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col items-center justify-center min-h-[300px] relative overflow-hidden group hover:border-lime-500/30 transition-colors duration-500">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Target size={80} className="text-lime-400" />
-        </div>
-        <h3 className="text-zinc-500 font-bold mb-2 uppercase text-[10px] tracking-[0.2em]">Efficiency Rating</h3>
-        <div className="relative w-48 h-48">
-          {mounted && (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  innerRadius={65}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                  startAngle={90}
-                  endAngle={-270}
-                  stroke="none"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-          <div className="absolute inset-0 flex items-center justify-center flex-col">
-            <span className="text-5xl font-black text-white tracking-tighter">{completionRate}%</span>
-            <span className="text-[10px] text-lime-400 font-bold uppercase tracking-widest mt-2 bg-lime-400/10 px-2 py-1 rounded">On Track</span>
+      {/* NEW: Identity & Hardcore Mode */}
+      <div className={`bg-zinc-900 p-6 rounded-3xl shadow-2xl border col-span-1 md:col-span-1 lg:col-span-2 min-h-[300px] flex flex-col relative overflow-hidden
+        ${userProfile?.hardcoreMode ? 'border-red-500/30' : 'border-zinc-800'}
+      `}>
+          <h3 className="text-zinc-500 font-bold mb-6 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
+             <UserCircle size={14} className={userProfile?.hardcoreMode ? "text-red-500" : "text-zinc-400"} /> Identity Layer
+          </h3>
+          
+          <div className="flex-1 flex flex-col justify-center space-y-6">
+              <div className="bg-black/40 p-4 rounded-xl border border-zinc-800">
+                  <p className="text-xs text-zinc-500 font-mono mb-1">ARCHETYPE</p>
+                  <p className="text-xl font-black text-white">{userProfile?.archetype ? ARCHETYPES[userProfile.archetype.toUpperCase()]?.title : 'UNASSIGNED'}</p>
+              </div>
+
+              <div className="bg-black/40 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <div>
+                      <p className="text-xs text-zinc-500 font-mono mb-1 flex items-center gap-2">
+                          HARDCORE MODE
+                          {userProfile?.hardcoreMode ? <Skull size={12} className="text-red-500"/> : <ZapOff size={12}/>}
+                      </p>
+                      <p className={`text-sm font-bold ${userProfile?.hardcoreMode ? 'text-red-400' : 'text-zinc-400'}`}>
+                          {userProfile?.hardcoreMode ? 'Active: XP Penalty On' : 'Standard Protocol'}
+                      </p>
+                  </div>
+                  <button 
+                    onClick={onToggleHardcore}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all
+                        ${userProfile?.hardcoreMode 
+                            ? 'bg-red-500 text-white border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' 
+                            : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-white'}
+                    `}
+                  >
+                      {userProfile?.hardcoreMode ? 'DISABLE' : 'ENABLE'}
+                  </button>
+              </div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4 w-full mt-6">
-            <div className="text-center">
-                <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider">Done</p>
-                <p className="text-xl font-black text-white">{totalCompletedActual}</p>
-            </div>
-            <div className="text-center">
-                <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider">Target</p>
-                <p className="text-xl font-black text-zinc-400">{totalGoals}</p>
-            </div>
-        </div>
       </div>
 
       {/* 2. Consistency (Line) */}
@@ -1056,8 +1558,19 @@ export default function App() {
   const [strictMode, setStrictMode] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
+
+  // New States for Onboarding/Gamification
+  const [isOnboarding, setIsOnboarding] = useState(false);
+  const [tutorialMode, setTutorialMode] = useState(false);
+  const [showFirstWin, setShowFirstWin] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  
+  // Failure Recovery States
+  const [reflectionOpen, setReflectionOpen] = useState(false);
+  const [pendingRepair, setPendingRepair] = useState(null); // { habitId, dateKey }
 
   // 1. Auth Listener
   useEffect(() => {
@@ -1107,7 +1620,16 @@ export default function App() {
             const localData = localStorage.getItem('me_supreme_habits');
             const localStrict = localStorage.getItem('me_supreme_strict_mode');
             const localProfile = localStorage.getItem('me_supreme_profile');
-            if (localData) setHabits(JSON.parse(localData));
+            if (localData) {
+                const parsedHabits = JSON.parse(localData);
+                setHabits(parsedHabits);
+                // Check if user has no habits & no profile setup -> Onboarding
+                if (parsedHabits.length === 0 && !JSON.parse(localProfile || '{}').archetype) {
+                    setIsOnboarding(true);
+                }
+            } else {
+                 setIsOnboarding(true);
+            }
             if (localStrict) setStrictMode(JSON.parse(localStrict));
             if (localProfile) setUserProfile(JSON.parse(localProfile));
         } catch (e) {
@@ -1125,7 +1647,7 @@ export default function App() {
       const unsubscribeHabits = onSnapshot(q, (snapshot) => {
         const loadedHabits = snapshot.docs.map(doc => ({
           ...doc.data(), 
-          id: doc.id,    
+          id: doc.id,      
         }));
         setHabits(loadedHabits);
       });
@@ -1133,13 +1655,19 @@ export default function App() {
       const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
       const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
-              setUserProfile(docSnap.data());
+              const data = docSnap.data();
+              setUserProfile(data);
+              // Trigger onboarding if no archetype is set and habits are empty
+              if (!data.archetype && habits.length === 0) {
+                  setIsOnboarding(true);
+              }
           } else {
               setDoc(userDocRef, { 
                   displayName: user.displayName || 'Anonymous Agent',
                   email: user.email,
                   joinedAt: serverTimestamp()
               }, { merge: true });
+              setIsOnboarding(true);
           }
       });
 
@@ -1155,7 +1683,7 @@ export default function App() {
     }
   }, [user]);
 
-  // 3. Notifications Logic (Every 4 hours)
+  // 3. Notifications Logic
   useEffect(() => {
     if (!user || habits.length === 0) return;
     
@@ -1276,11 +1804,12 @@ export default function App() {
   };
 
   // --- Data Handlers ---
-  const handleAddHabit = async (name, goal) => {
+  const handleAddHabit = async (name, goal, timeOfDay = 'anytime') => {
     if (!user) return;
     const newHabitData = {
       name: name || `New Protocol ${habits.length + 1}`,
-      goal: goal || 0, 
+      goal: goal || 0,
+      timeOfDay, 
       createdAt: serverTimestamp(), 
       history: {}
     };
@@ -1323,10 +1852,20 @@ export default function App() {
     
     const habit = habits[habitIndex];
     const newHistory = { ...habit.history };
+    let isCompleting = false;
+
     if (newHistory[dateKey]) {
       delete newHistory[dateKey];
     } else {
       newHistory[dateKey] = true;
+      isCompleting = true;
+    }
+
+    // First Win Trigger Logic
+    if (tutorialMode && isCompleting) {
+        setTutorialMode(false);
+        setShowFirstWin(true);
+        setTimeout(() => setShowFirstWin(false), 3500); // Hide reward after 3.5s
     }
 
     let updatedHabits = [...habits];
@@ -1340,6 +1879,22 @@ export default function App() {
         setHabits(updatedHabits);
     }
     await updateUserStats(updatedHabits);
+  };
+
+  // NEW: Repair Streak Trigger
+  const handleRepairStreak = (habitId, dateKey) => {
+      setPendingRepair({ habitId, dateKey });
+      setReflectionOpen(true);
+  };
+
+  // NEW: Confirm Repair
+  const confirmRepair = async () => {
+      if (pendingRepair) {
+          await handleToggleHabit(pendingRepair.habitId, pendingRepair.dateKey);
+          setPendingRepair(null);
+          setReflectionOpen(false);
+          // Decrease token logic here if we were actually tracking token count in DB
+      }
   };
 
   const handleUpdateField = async (habitId, field, value) => {
@@ -1386,10 +1941,61 @@ export default function App() {
       await setDoc(userDocRef, { squadId }, { merge: true });
   };
 
+  const handleOnboardingComplete = async (archetypeId, defaultHabits) => {
+      const arch = ARCHETYPES[archetypeId.toUpperCase()];
+      if (user.uid === 'local-user') {
+          updateLocalProfile({ 
+              archetype: archetypeId, 
+              manifesto: arch.manifesto,
+              displayName: user.displayName 
+          });
+          // Add default habits locally
+          const newHabits = defaultHabits.map((h, i) => ({
+              ...h,
+              id: `local-def-${Date.now()}-${i}`,
+              createdAt: new Date().toISOString(),
+              history: {}
+          }));
+          saveToLocal(newHabits);
+      } else {
+          const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+          await setDoc(userDocRef, { 
+              archetype: archetypeId,
+              manifesto: arch.manifesto,
+              displayName: user.displayName 
+          }, { merge: true });
+          // Add default habits to firestore
+          for (const h of defaultHabits) {
+              await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'habits'), {
+                  ...h,
+                  createdAt: serverTimestamp(),
+                  history: {}
+              });
+          }
+      }
+      setIsOnboarding(false);
+      setTutorialMode(true); // Enable First Win mode
+      setShowGuide(true); // Trigger the User Guide automatically
+  };
+
+  // NEW: Hardcore Mode Toggle
+  const handleToggleHardcore = async () => {
+      const newVal = !userProfile?.hardcoreMode;
+      if (user.uid === 'local-user') {
+          updateLocalProfile({ hardcoreMode: newVal });
+      } else {
+          const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+          await setDoc(userDocRef, { hardcoreMode: newVal }, { merge: true });
+      }
+  };
+
   const changeMonth = (delta) => {
     const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + delta, 1);
     setCurrentDate(newDate);
   };
+
+  const totalXP = habits.reduce((total, habit) => total + Object.keys(habit.history || {}).length, 0);
+  const rankInfo = getRankInfo(totalXP);
 
   // Check if firebase config is present
   const isConfigured = firebaseConfig.apiKey !== "PLACEHOLDER";
@@ -1400,10 +2006,29 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black">
+      {isOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
+      {showFirstWin && <SystemOnlineOverlay />}
+      <ReflectionModal 
+        isOpen={reflectionOpen} 
+        onClose={() => setReflectionOpen(false)} 
+        onRecover={confirmRepair}
+      />
+      <UserGuide 
+        isOpen={showGuide}
+        onClose={() => setShowGuide(false)}
+      />
+      
       <NewHabitModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={handleAddHabit}
+      />
+      <ShareModal 
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        rankInfo={rankInfo}
+        totalXP={totalXP}
+        habits={habits}
       />
 
       {/* Navbar */}
@@ -1422,15 +2047,15 @@ export default function App() {
              <button 
                 onClick={() => setView('main')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${view === 'main' ? 'bg-zinc-800 text-lime-400 shadow-sm' : 'text-zinc-500 hover:text-white'}`}
-              >
+             >
                 <Layout size={16} /> <span className="hidden md:inline">DASHBOARD</span>
-              </button>
-              <button 
+             </button>
+             <button 
                 onClick={() => setView('squad')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${view === 'squad' ? 'bg-zinc-800 text-lime-400 shadow-sm' : 'text-zinc-500 hover:text-white'}`}
-              >
+             >
                 <Users size={16} /> <span className="hidden md:inline">SQUAD</span>
-              </button>
+             </button>
           </div>
 
           <div className="flex items-center gap-4">
@@ -1439,6 +2064,14 @@ export default function App() {
                      <Download size={14}/> <span className="hidden sm:inline">Install App</span>
                  </button>
              )}
+
+             <button 
+                onClick={() => setShowGuide(true)}
+                className="p-2 bg-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                title="User Manual"
+             >
+                <BookOpen size={20} />
+             </button>
 
              <div className="flex items-center bg-zinc-900 rounded-lg p-1 border border-zinc-800 hidden sm:flex">
                 <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-lime-400 transition-colors"><ChevronLeft size={16}/></button>
@@ -1463,11 +2096,28 @@ export default function App() {
         {view === 'main' && (
           <div className="flex-1 animate-in fade-in zoom-in-95 duration-500 flex flex-col gap-8 pb-20">
              <section>
-                <div className="flex items-center gap-2 mb-4 px-2">
-                   <Flame className="text-orange-500 fill-orange-500" size={20} />
-                   <h2 className="text-xl font-black tracking-tight text-white">PERFORMANCE</h2>
+                <div className="flex items-center justify-between mb-4 px-2">
+                    <div className="flex items-center gap-2">
+                        <Flame className="text-orange-500 fill-orange-500" size={20} />
+                        <h2 className="text-xl font-black tracking-tight text-white">PERFORMANCE</h2>
+                    </div>
+                    {/* Visual Comeback Mode Indicator */}
+                    <div className="flex items-center gap-2 bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/20">
+                        <TrendingUp size={14} className="text-yellow-500" />
+                        <span className="text-[10px] font-bold text-yellow-500 uppercase">Comeback Mode Active (2x XP)</span>
+                    </div>
                 </div>
-                <AnalyticsView habits={habits} currentDate={currentDate} />
+                
+                {/* New Achievements Section */}
+                <AchievementsView habits={habits} totalXP={totalXP} />
+
+                <AnalyticsView 
+                    habits={habits} 
+                    currentDate={currentDate} 
+                    onOpenShare={() => setIsShareOpen(true)}
+                    userProfile={userProfile}
+                    onToggleHardcore={handleToggleHardcore}
+                />
              </section>
 
              <section>
@@ -1479,11 +2129,13 @@ export default function App() {
                   habits={habits}
                   currentDate={currentDate}
                   onToggle={handleToggleHabit}
+                  onRepairStreak={handleRepairStreak}
                   onOpenNewHabit={() => setIsModalOpen(true)}
                   onDelete={handleDeleteHabit}
                   onUpdateField={handleUpdateField}
                   strictMode={strictMode}
                   toggleStrictMode={toggleStrictMode}
+                  tutorialMode={tutorialMode}
                 />
              </section>
           </div>
