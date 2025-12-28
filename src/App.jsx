@@ -57,7 +57,8 @@ import {
   Skull,
   ZapOff,
   BookOpen,
-  HelpCircle
+  HelpCircle,
+  Navigation
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -248,6 +249,148 @@ const ACHIEVEMENTS = [
 
 // --- Components ---
 
+// NEW: Game-like Highlight Tour Overlay
+const GameTutorial = ({ isActive, onComplete }) => {
+    const [step, setStep] = useState(0);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, height: 0 });
+
+    const STEPS = [
+        {
+            target: 'tour-rank-card',
+            title: "YOUR STATUS",
+            text: "This is your current Rank. As you complete habits, you gain XP. Earning XP unlocks new ranks from 'Drifter' to 'Supreme'.",
+            position: 'bottom'
+        },
+        {
+            target: 'tour-grid',
+            title: "THE GRID",
+            text: "Your command center. Each row is a habit, each box is a day. Click a box to toggle it. Green means done. Red means missed.",
+            position: 'top'
+        },
+        {
+            target: 'tour-add-btn',
+            title: "EXPAND PROTOCOL",
+            text: "Click here to add new habits. You can choose between 'Motivation' (easy) or 'Discipline' (hard) modes.",
+            position: 'bottom'
+        },
+        {
+            target: 'tour-nav-squad',
+            title: "SQUAD SYNC",
+            text: "Don't fight alone. Click the Squad tab to create a leaderboard with friends or family.",
+            position: 'bottom'
+        }
+    ];
+
+    useEffect(() => {
+        if (!isActive) return;
+        
+        const updatePosition = () => {
+            const currentStep = STEPS[step];
+            const element = document.getElementById(currentStep.target);
+            if (element) {
+                const rect = element.getBoundingClientRect();
+                setCoords({
+                    top: rect.top, // Use viewport coordinates relative to fixed overlay
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height,
+                    bottom: rect.bottom
+                });
+            }
+        };
+
+        // Trigger smooth scroll to element
+        const currentStep = STEPS[step];
+        const element = document.getElementById(currentStep.target);
+        if(element) {
+             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Continuously update position during scroll animation
+        const interval = setInterval(updatePosition, 10);
+        const timer = setTimeout(() => clearInterval(interval), 1000); // Stop tracking after 1s
+
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition);
+        
+        return () => {
+            clearInterval(interval);
+            clearTimeout(timer);
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition);
+        }
+    }, [step, isActive]);
+
+    if (!isActive) return null;
+    const currentStep = STEPS[step];
+
+    const handleNext = () => {
+        if (step < STEPS.length - 1) {
+            setStep(s => s + 1);
+        } else {
+            onComplete();
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[9999] overflow-hidden pointer-events-none">
+            {/* The Backdrop/Shadow (Uses box-shadow hack for transparent hole) */}
+            <div 
+                className="absolute transition-all duration-75 ease-out border-2 border-lime-400 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] pointer-events-auto"
+                style={{
+                    top: coords.top,
+                    left: coords.left,
+                    width: coords.width,
+                    height: coords.height,
+                }}
+            >
+                {/* Pulsing effect */}
+                <div className="absolute inset-0 bg-lime-400/10 animate-pulse rounded-lg pointer-events-none"></div>
+            </div>
+
+            {/* The Tooltip */}
+            <div 
+                className="absolute transition-all duration-300 z-[10000] max-w-xs w-full pointer-events-auto"
+                style={{
+                    top: currentStep.position === 'bottom' ? coords.top + coords.height + 20 : 
+                         currentStep.position === 'top' ? coords.top - 20 : 
+                         coords.top,
+                    left: currentStep.position === 'left' ? coords.left - 340 : 
+                          coords.left + (coords.width / 2) - 160,
+                    transform: currentStep.position === 'top' ? 'translateY(-100%)' : 'none'
+                }}
+            >
+                <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-2xl shadow-2xl relative">
+                    {/* Arrow Pointer */}
+                    <div className={`absolute w-4 h-4 bg-zinc-900 border-l border-t border-zinc-700 transform rotate-45 
+                        ${currentStep.position === 'bottom' ? '-top-2 left-1/2 -translate-x-1/2' : 
+                          currentStep.position === 'top' ? '-bottom-2 left-1/2 -translate-x-1/2 rotate-[225deg]' :
+                          currentStep.position === 'left' ? 'top-1/2 -right-2 -translate-y-1/2 rotate-[135deg]' : ''
+                        }
+                    `}></div>
+
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-lime-400 rounded-full animate-ping"></div>
+                        <h3 className="text-lime-400 font-black text-sm tracking-widest uppercase">{currentStep.title}</h3>
+                    </div>
+                    <p className="text-white text-sm mb-6 leading-relaxed">
+                        {currentStep.text}
+                    </p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-zinc-500 font-mono">STEP {step + 1}/{STEPS.length}</p>
+                        <button 
+                            onClick={handleNext}
+                            className="bg-white text-black px-4 py-2 rounded-lg text-xs font-bold hover:bg-zinc-200 transition-colors"
+                        >
+                            {step === STEPS.length - 1 ? 'FINISH TOUR' : 'NEXT'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // NEW: Reflection Modal (Failure Management)
 const ReflectionModal = ({ isOpen, onClose, onRecover }) => {
     if (!isOpen) return null;
@@ -293,7 +436,7 @@ const ReflectionModal = ({ isOpen, onClose, onRecover }) => {
     )
 }
 
-// NEW: User Guide / Manual Component
+// User Guide / Manual Component
 const UserGuide = ({ isOpen, onClose }) => {
     const [page, setPage] = useState(0);
 
@@ -1111,7 +1254,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800/50 overflow-hidden relative">
+    <div id="tour-grid" className="flex flex-col h-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800/50 overflow-hidden relative">
       <div className={`absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r transition-all duration-500 z-30 ${strictMode ? 'from-red-500 via-orange-500 to-yellow-500' : 'from-lime-400 via-emerald-500 to-cyan-500'}`}></div>
 
       <div className="p-6 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-900/80 backdrop-blur-sm z-20">
@@ -1135,6 +1278,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
             </button>
 
             <button 
+            id="tour-add-btn"
             onClick={onOpenNewHabit}
             className="flex items-center gap-2 px-5 py-2.5 bg-lime-400 text-black rounded-xl hover:bg-lime-300 transition-all shadow-[0_0_15px_rgba(163,230,53,0.3)] text-sm font-bold hover:scale-105 active:scale-95"
             >
@@ -1375,7 +1519,7 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 lg:gap-6 animate-fade-in mb-6">
       
       {/* 0. Rank Card with Share Button */}
-      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
+      <div id="tour-rank-card" className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <Medal size={120} className="text-yellow-500" />
          </div>
@@ -1566,7 +1710,8 @@ export default function App() {
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [tutorialMode, setTutorialMode] = useState(false);
   const [showFirstWin, setShowFirstWin] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+  const [showGuide, setShowGuide] = useState(false); // Manual Guide
+  const [showTour, setShowTour] = useState(false); // Auto Highlight Tour
   
   // Failure Recovery States
   const [reflectionOpen, setReflectionOpen] = useState(false);
@@ -1975,7 +2120,7 @@ export default function App() {
       }
       setIsOnboarding(false);
       setTutorialMode(true); // Enable First Win mode
-      setShowGuide(true); // Trigger the User Guide automatically
+      setShowTour(true); // Trigger the Highlighter Tour automatically
   };
 
   // NEW: Hardcore Mode Toggle
@@ -2018,6 +2163,12 @@ export default function App() {
         onClose={() => setShowGuide(false)}
       />
       
+      {/* Interactive Tour Overlay */}
+      <GameTutorial 
+        isActive={showTour} 
+        onComplete={() => setShowTour(false)}
+      />
+      
       <NewHabitModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -2051,6 +2202,7 @@ export default function App() {
                 <Layout size={16} /> <span className="hidden md:inline">DASHBOARD</span>
              </button>
              <button 
+                id="tour-nav-squad"
                 onClick={() => setView('squad')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${view === 'squad' ? 'bg-zinc-800 text-lime-400 shadow-sm' : 'text-zinc-500 hover:text-white'}`}
              >
