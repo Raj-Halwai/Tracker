@@ -59,8 +59,7 @@ import {
   BookOpen,
   HelpCircle,
   Navigation,
-  Gift,
-  Loader2
+  Gift
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -103,48 +102,6 @@ import {
   setDoc, 
   getDoc 
 } from 'firebase/firestore';
-
-// --- Error Boundary Component (Prevents White Screen) ---
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    this.setState({ error, errorInfo });
-    console.error("CRITICAL UI ERROR:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-[100dvh] bg-black text-red-500 p-8 flex flex-col items-center justify-center text-center font-mono">
-          <ShieldAlert size={64} className="mb-6 animate-pulse" />
-          <h1 className="text-3xl font-black mb-2 text-white">SYSTEM FAILURE</h1>
-          <p className="text-zinc-500 text-xs mb-6">The interface crashed. Report the code below.</p>
-          <div className="bg-zinc-900 border border-red-900/50 p-4 rounded-xl mb-6 max-w-full overflow-auto text-left w-full">
-            <p className="text-red-400 text-xs break-all">
-              {this.state.error && this.state.error.toString()}
-            </p>
-          </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="bg-white text-black px-8 py-3 rounded-xl font-black hover:bg-zinc-200 transition-colors"
-          >
-            REBOOT SYSTEM
-          </button>
-        </div>
-      );
-    }
-
-    return this.props.children; 
-  }
-}
 
 // --- Firebase Initialization ---
 const getFirebaseConfig = () => {
@@ -297,7 +254,7 @@ const ACHIEVEMENTS = [
 const TokenToast = ({ visible }) => {
     if (!visible) return null;
     return (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in zoom-in slide-in-from-top-4 duration-500 pointer-events-none w-[90%] max-w-sm">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in zoom-in slide-in-from-top-4 duration-500 pointer-events-none">
             <div className="bg-lime-900/90 border border-lime-400/50 text-lime-400 px-6 py-4 rounded-2xl shadow-[0_0_30px_rgba(163,230,53,0.3)] flex items-center gap-3 backdrop-blur-md">
                 <div className="bg-lime-400 text-black p-2 rounded-lg">
                     <Gift size={24} strokeWidth={3} />
@@ -327,7 +284,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-grid',
             title: "THE GRID",
             text: "Your command center. Each row is a habit, each box is a day. Click a box to toggle it. Green means done. Red means missed.",
-            position: 'top'
+            position: 'top' // Force tooltip above to avoid being cut off on mobile
         },
         {
             target: 'tour-add-btn',
@@ -339,7 +296,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-nav-squad',
             title: "SQUAD SYNC",
             text: "Don't fight alone. Click the Squad tab to create a leaderboard with friends or family.",
-            position: 'top'
+            position: 'top' // Force above nav bar
         }
     ];
 
@@ -378,7 +335,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
                   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   updatePosition();
              }
-        }, 1000); // Increased delay for mobile robustness
+        }, 500); // 500ms delay for mobile
 
         // Continuously update position
         const interval = setInterval(updatePosition, 100);
@@ -400,7 +357,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
     if (coords.width === 0) return null;
 
     const currentStep = STEPS[step];
-    if (!currentStep) return null;
+    if (!currentStep) return null; // Safety check
 
     const handleNext = () => {
         if (step < STEPS.length - 1) {
@@ -708,7 +665,7 @@ const SystemOnlineOverlay = () => {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300 pointer-events-none">
              <div className="text-center">
-                 <div className="text-6xl mb-4 animate-bounce">🏆</div>
+                 <div className="text-6xl mb-4 animate-bounce">ðŸ†</div>
                  <h1 className="text-4xl md:text-6xl font-black text-lime-400 tracking-tighter mb-2 animate-in zoom-in duration-300">SYSTEM ONLINE</h1>
                  <p className="text-white font-mono text-xl tracking-widest mb-8">PROTOCOL INITIATED</p>
                  <div className="bg-zinc-800 text-lime-400 px-6 py-2 rounded-full font-bold inline-block border border-lime-400/30 shadow-[0_0_30px_rgba(163,230,53,0.4)]">
@@ -1133,7 +1090,7 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
                       
                       {user.uid === 'local-user' && (
                           <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-500 text-xs font-bold uppercase tracking-wide">
-                              ⚠ Local Mode Active: You will only see your own stats. Sign in with Google to sync with others.
+                              âš  Local Mode Active: You will only see your own stats. Sign in with Google to sync with others.
                           </div>
                       )}
 
@@ -1627,15 +1584,11 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
               <div className="bg-black/40 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
                   <div>
                       <p className="text-xs text-zinc-500 font-mono mb-1">ARCHETYPE</p>
-                      <p className="text-lg font-black text-white">
-                        {userProfile?.archetype ? (ARCHETYPES[userProfile.archetype.toUpperCase()]?.title || 'UNKNOWN') : 'UNASSIGNED'}
-                      </p>
+                      <p className="text-lg font-black text-white">{userProfile?.archetype ? ARCHETYPES[userProfile.archetype.toUpperCase()]?.title : 'UNASSIGNED'}</p>
                   </div>
                   <div className="p-2 bg-zinc-900 rounded-lg text-zinc-500">
                       {userProfile?.archetype && (() => {
-                          const archKey = userProfile.archetype.toUpperCase();
-                          const arch = ARCHETYPES[archKey];
-                          const Icon = arch?.icon || UserCircle;
+                          const Icon = ARCHETYPES[userProfile.archetype.toUpperCase()]?.icon || UserCircle;
                           return <Icon size={20} />;
                       })()}
                   </div>
@@ -1801,15 +1754,14 @@ export default function App() {
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [tutorialMode, setTutorialMode] = useState(false);
   const [showFirstWin, setShowFirstWin] = useState(false);
-  const [showGuide, setShowGuide] = useState(false); 
-  const [showTour, setShowTour] = useState(false);
-  const [tokenToast, setTokenToast] = useState(false); 
+  const [showGuide, setShowGuide] = useState(false); // Manual Guide
+  const [showTour, setShowTour] = useState(false); // Auto Highlight Tour
+  const [tokenToast, setTokenToast] = useState(false); // Token Gain Toast
   
   // Failure Recovery States
   const [reflectionOpen, setReflectionOpen] = useState(false);
   const [pendingRepair, setPendingRepair] = useState(null); // { habitId, dateKey }
 
-  // ... (Hooks and Logic remain the same) ...
   // 1. Auth Listener
   useEffect(() => {
     if (firebaseConfig.apiKey === "PLACEHOLDER") {
@@ -2281,21 +2233,8 @@ export default function App() {
     return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} isConfigured={isConfigured} />;
   }
 
-  // 4. Loading State Check for Mobile Robustness
-  if (user && !userProfile && user.uid !== 'local-user') {
-    return (
-        <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-4 text-white">
-            <div className="animate-spin text-lime-400 mb-4">
-                <Loader2 size={48} />
-            </div>
-            <p className="text-zinc-500 font-mono text-sm tracking-widest animate-pulse">SYNCING PROFILE...</p>
-        </div>
-    )
-  }
-
   return (
-    <ErrorBoundary>
-    <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black">
       {isOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
       {showFirstWin && <SystemOnlineOverlay />}
       <ReflectionModal 
@@ -2465,6 +2404,5 @@ export default function App() {
         }
       `}</style>
     </div>
-    </ErrorBoundary>
   );
 }
