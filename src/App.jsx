@@ -58,7 +58,8 @@ import {
   ZapOff,
   BookOpen,
   HelpCircle,
-  Navigation
+  Navigation,
+  Gift
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -249,7 +250,25 @@ const ACHIEVEMENTS = [
 
 // --- Components ---
 
-// NEW: Game-like Highlight Tour Overlay
+// NEW: Toast Notification for Token Gain
+const TokenToast = ({ visible }) => {
+    if (!visible) return null;
+    return (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in zoom-in slide-in-from-top-4 duration-500 pointer-events-none">
+            <div className="bg-lime-900/90 border border-lime-400/50 text-lime-400 px-6 py-4 rounded-2xl shadow-[0_0_30px_rgba(163,230,53,0.3)] flex items-center gap-3 backdrop-blur-md">
+                <div className="bg-lime-400 text-black p-2 rounded-lg">
+                    <Gift size={24} strokeWidth={3} />
+                </div>
+                <div>
+                    <h4 className="font-black text-sm uppercase tracking-wider">Supply Drop</h4>
+                    <p className="text-xs text-lime-200 font-mono font-bold">+1 FORGIVENESS TOKEN EARNED</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Game-like Highlight Tour Overlay
 const GameTutorial = ({ isActive, onComplete }) => {
     const [step, setStep] = useState(0);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, height: 0 });
@@ -265,7 +284,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-grid',
             title: "THE GRID",
             text: "Your command center. Each row is a habit, each box is a day. Click a box to toggle it. Green means done. Red means missed.",
-            position: 'top'
+            position: 'top' // Force tooltip above to avoid being cut off on mobile
         },
         {
             target: 'tour-add-btn',
@@ -277,7 +296,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-nav-squad',
             title: "SQUAD SYNC",
             text: "Don't fight alone. Click the Squad tab to create a leaderboard with friends or family.",
-            position: 'bottom'
+            position: 'top' // Force above nav bar
         }
     ];
 
@@ -286,43 +305,59 @@ const GameTutorial = ({ isActive, onComplete }) => {
         
         const updatePosition = () => {
             const currentStep = STEPS[step];
+            if (!currentStep) return;
             const element = document.getElementById(currentStep.target);
             if (element) {
-                const rect = element.getBoundingClientRect();
-                setCoords({
-                    top: rect.top, // Use viewport coordinates relative to fixed overlay
-                    left: rect.left,
-                    width: rect.width,
-                    height: rect.height,
-                    bottom: rect.bottom
-                });
+                try {
+                    const rect = element.getBoundingClientRect();
+                    // Check if element is actually visible/rendered to avoid 0x0 box
+                    if (rect.width > 0 && rect.height > 0) {
+                        setCoords({
+                            top: rect.top, 
+                            left: rect.left,
+                            width: rect.width,
+                            height: rect.height,
+                            bottom: rect.bottom
+                        });
+                    }
+                } catch (e) {
+                    console.error("Tutorial highlight error:", e);
+                }
             }
         };
 
-        // Trigger smooth scroll to element
-        const currentStep = STEPS[step];
-        const element = document.getElementById(currentStep.target);
-        if(element) {
-             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        // Delay initial calculation to allow mobile render
+        const initTimer = setTimeout(() => {
+             const currentStep = STEPS[step];
+             if (!currentStep) return;
+             const element = document.getElementById(currentStep.target);
+             if(element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  updatePosition();
+             }
+        }, 500); // 500ms delay for mobile
 
-        // Continuously update position during scroll animation
-        const interval = setInterval(updatePosition, 10);
-        const timer = setTimeout(() => clearInterval(interval), 1000); // Stop tracking after 1s
+        // Continuously update position
+        const interval = setInterval(updatePosition, 100);
 
         window.addEventListener('resize', updatePosition);
         window.addEventListener('scroll', updatePosition);
         
         return () => {
+            clearTimeout(initTimer);
             clearInterval(interval);
-            clearTimeout(timer);
             window.removeEventListener('resize', updatePosition);
             window.removeEventListener('scroll', updatePosition);
         }
     }, [step, isActive]);
 
     if (!isActive) return null;
+    
+    // Safety check: if coords are 0 (element not found), don't show tooltip yet
+    if (coords.width === 0) return null;
+
     const currentStep = STEPS[step];
+    if (!currentStep) return null; // Safety check
 
     const handleNext = () => {
         if (step < STEPS.length - 1) {
@@ -334,9 +369,9 @@ const GameTutorial = ({ isActive, onComplete }) => {
 
     return (
         <div className="fixed inset-0 z-[9999] overflow-hidden pointer-events-none">
-            {/* The Backdrop/Shadow (Uses box-shadow hack for transparent hole) */}
+            {/* The Backdrop */}
             <div 
-                className="absolute transition-all duration-75 ease-out border-2 border-lime-400 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] pointer-events-auto"
+                className="absolute transition-all duration-300 ease-out border-2 border-lime-400 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] pointer-events-auto"
                 style={{
                     top: coords.top,
                     left: coords.left,
@@ -344,31 +379,21 @@ const GameTutorial = ({ isActive, onComplete }) => {
                     height: coords.height,
                 }}
             >
-                {/* Pulsing effect */}
                 <div className="absolute inset-0 bg-lime-400/10 animate-pulse rounded-lg pointer-events-none"></div>
             </div>
 
             {/* The Tooltip */}
             <div 
-                className="absolute transition-all duration-300 z-[10000] max-w-xs w-full pointer-events-auto"
+                className="absolute transition-all duration-300 z-[10000] max-w-xs w-full pointer-events-auto px-4"
                 style={{
                     top: currentStep.position === 'bottom' ? coords.top + coords.height + 20 : 
                          currentStep.position === 'top' ? coords.top - 20 : 
                          coords.top,
-                    left: currentStep.position === 'left' ? coords.left - 340 : 
-                          coords.left + (coords.width / 2) - 160,
-                    transform: currentStep.position === 'top' ? 'translateY(-100%)' : 'none'
+                    left: '50%', // Center horizontally on mobile
+                    transform: `translateX(-50%) ${currentStep.position === 'top' ? 'translateY(-100%)' : ''}`
                 }}
             >
-                <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-2xl shadow-2xl relative">
-                    {/* Arrow Pointer */}
-                    <div className={`absolute w-4 h-4 bg-zinc-900 border-l border-t border-zinc-700 transform rotate-45 
-                        ${currentStep.position === 'bottom' ? '-top-2 left-1/2 -translate-x-1/2' : 
-                          currentStep.position === 'top' ? '-bottom-2 left-1/2 -translate-x-1/2 rotate-[225deg]' :
-                          currentStep.position === 'left' ? 'top-1/2 -right-2 -translate-y-1/2 rotate-[135deg]' : ''
-                        }
-                    `}></div>
-
+                <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-2xl shadow-2xl relative w-full">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-2 h-2 bg-lime-400 rounded-full animate-ping"></div>
                         <h3 className="text-lime-400 font-black text-sm tracking-widest uppercase">{currentStep.title}</h3>
@@ -382,7 +407,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
                             onClick={handleNext}
                             className="bg-white text-black px-4 py-2 rounded-lg text-xs font-bold hover:bg-zinc-200 transition-colors"
                         >
-                            {step === STEPS.length - 1 ? 'FINISH TOUR' : 'NEXT'}
+                            {step === STEPS.length - 1 ? 'FINISH' : 'NEXT'}
                         </button>
                     </div>
                 </div>
@@ -391,8 +416,8 @@ const GameTutorial = ({ isActive, onComplete }) => {
     )
 }
 
-// NEW: Reflection Modal (Failure Management)
-const ReflectionModal = ({ isOpen, onClose, onRecover }) => {
+// Reflection Modal (Failure Management)
+const ReflectionModal = ({ isOpen, onClose, onRecover, tokens }) => {
     if (!isOpen) return null;
     const reasons = ["Sleep / Fatigue", "Stress / Anxiety", "Travel", "Forgot", "Just Lazy"];
 
@@ -418,13 +443,20 @@ const ReflectionModal = ({ isOpen, onClose, onRecover }) => {
                 <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 mb-6">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-zinc-500">FORGIVENESS TOKENS</span>
-                        <span className="text-xs font-mono text-lime-400">1 AVAILABLE</span>
+                        <span className={`text-xs font-mono font-bold ${tokens > 0 ? 'text-lime-400' : 'text-red-500'}`}>
+                            {tokens} AVAILABLE
+                        </span>
                     </div>
                     <button 
                         onClick={onRecover}
-                        className="w-full py-3 bg-lime-400/10 border border-lime-400/50 text-lime-400 font-bold rounded-lg hover:bg-lime-400 hover:text-black transition-all flex items-center justify-center gap-2"
+                        disabled={tokens <= 0}
+                        className={`w-full py-3 border font-bold rounded-lg transition-all flex items-center justify-center gap-2
+                            ${tokens > 0 
+                                ? 'bg-lime-400/10 border-lime-400/50 text-lime-400 hover:bg-lime-400 hover:text-black' 
+                                : 'bg-zinc-800 border-zinc-700 text-zinc-600 cursor-not-allowed'}
+                        `}
                     >
-                        <Repeat size={16} /> USE TOKEN & REPAIR STREAK
+                        <Repeat size={16} /> {tokens > 0 ? "USE TOKEN & REPAIR STREAK" : "INSUFFICIENT TOKENS"}
                     </button>
                 </div>
 
@@ -890,7 +922,7 @@ const LoginView = ({ onLogin, onLocalMode, error, isConfigured }) => {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 text-white relative overflow-hidden font-sans">
+    <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-4 text-white relative overflow-hidden font-sans">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(76,29,149,0.1),rgba(0,0,0,1))] pointer-events-none"></div>
         <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-lime-500/10 rounded-full blur-[150px] animate-pulse pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] bg-purple-600/10 rounded-full blur-[150px] animate-pulse delay-1000 pointer-events-none"></div>
@@ -1219,7 +1251,7 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
 };
 
 // 1. Digital Tracker (Gen Z Dark Mode) - Updated with TutorialMode prop
-const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, strictMode, toggleStrictMode, tutorialMode, onRepairStreak }) => {
+const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, tutorialMode, onRepairStreak }) => {
   const daysInMonth = getDaysInMonth(currentDate);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -1255,27 +1287,21 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
 
   return (
     <div id="tour-grid" className="flex flex-col h-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800/50 overflow-hidden relative">
-      <div className={`absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r transition-all duration-500 z-30 ${strictMode ? 'from-red-500 via-orange-500 to-yellow-500' : 'from-lime-400 via-emerald-500 to-cyan-500'}`}></div>
+      {/* Visual Indicator that System is Secured */}
+      <div className={`absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r transition-all duration-500 z-30 from-red-500 via-orange-500 to-yellow-500`}></div>
 
       <div className="p-6 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-900/80 backdrop-blur-sm z-20">
         <h2 className="text-xl font-black text-white flex items-center gap-3 tracking-tight">
-          <Grid size={24} className={strictMode ? "text-red-500" : "text-lime-400"} />
+          <Grid size={24} className="text-red-500" />
           THE GRID
         </h2>
         
         <div className="flex items-center gap-3">
-            <button
-                onClick={toggleStrictMode}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all
-                    ${strictMode 
-                        ? 'bg-red-500/10 border-red-500/50 text-red-500 hover:bg-red-500/20' 
-                        : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-700'}
-                `}
-                title={strictMode ? "Strict Mode Active: Past days locked" : "Strict Mode Off: Free editing"}
-            >
-                {strictMode ? <Lock size={14} /> : <Unlock size={14} />}
-                {strictMode ? "No Cheating" : "Strict Mode Off"}
-            </button>
+            {/* Strict Mode Indicator - System is always strict */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/10">
+                <Lock size={12} className="text-red-500" />
+                <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Protocol Locked</span>
+            </div>
 
             <button 
             id="tour-add-btn"
@@ -1376,8 +1402,12 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                       const dateKey = getDateKey(currentDate, day);
                       const isDone = habit.history?.[dateKey];
                       const isFuture = isFutureDate(day);
-                      const isPast = strictMode && !isToday(day) && new Date(currentDate.getFullYear(), currentDate.getMonth(), day) < new Date();
-                      const isDisabled = isFuture; // Allow repair on past days via specific action, but general click is disabled if future
+                      
+                      // STRICT MODE ENFORCED: Always true for past days not today
+                      const isPast = !isToday(day) && new Date(currentDate.getFullYear(), currentDate.getMonth(), day) < new Date();
+                      
+                      // Disable direct interaction if future
+                      const isDisabled = isFuture; 
                       
                       // Tutorial Highlighting Logic
                       const isTutorialTarget = isFirstHabitTutorial && isToday(day);
@@ -1499,13 +1529,7 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
   }, 0);
   
   const completionRate = totalGoals > 0 ? Math.round((totalCompletedActual / totalGoals) * 100) : 0;
-  const pieData = [
-    { name: 'Completed', value: totalCompletedActual },
-    { name: 'Remaining', value: Math.max(0, totalGoals - totalCompletedActual) }
-  ];
-  // Neon Colors
-  const PIE_COLORS = ['#a3e635', '#27272a']; // Lime-400, Zinc-800
-
+  
   const sortedHabits = [...habits].sort((a, b) => {
     const getCount = (h) => {
       let c = 0;
@@ -1556,10 +1580,30 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
              <UserCircle size={14} className={userProfile?.hardcoreMode ? "text-red-500" : "text-zinc-400"} /> Identity Layer
           </h3>
           
-          <div className="flex-1 flex flex-col justify-center space-y-6">
-              <div className="bg-black/40 p-4 rounded-xl border border-zinc-800">
-                  <p className="text-xs text-zinc-500 font-mono mb-1">ARCHETYPE</p>
-                  <p className="text-xl font-black text-white">{userProfile?.archetype ? ARCHETYPES[userProfile.archetype.toUpperCase()]?.title : 'UNASSIGNED'}</p>
+          <div className="flex-1 flex flex-col justify-center space-y-4">
+              <div className="bg-black/40 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <div>
+                      <p className="text-xs text-zinc-500 font-mono mb-1">ARCHETYPE</p>
+                      <p className="text-lg font-black text-white">{userProfile?.archetype ? ARCHETYPES[userProfile.archetype.toUpperCase()]?.title : 'UNASSIGNED'}</p>
+                  </div>
+                  <div className="p-2 bg-zinc-900 rounded-lg text-zinc-500">
+                      {userProfile?.archetype && (() => {
+                          const Icon = ARCHETYPES[userProfile.archetype.toUpperCase()]?.icon || UserCircle;
+                          return <Icon size={20} />;
+                      })()}
+                  </div>
+              </div>
+
+              <div className="bg-black/40 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <div>
+                      <p className="text-xs text-zinc-500 font-mono mb-1">FORGIVENESS TOKENS</p>
+                      <p className="text-lg font-black text-lime-400">
+                          {userProfile?.tokens !== undefined ? userProfile.tokens : 3}
+                      </p>
+                  </div>
+                  <div className="p-2 bg-zinc-900 rounded-lg text-lime-400">
+                      <Repeat size={20} />
+                  </div>
               </div>
 
               <div className="bg-black/40 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
@@ -1712,6 +1756,7 @@ export default function App() {
   const [showFirstWin, setShowFirstWin] = useState(false);
   const [showGuide, setShowGuide] = useState(false); // Manual Guide
   const [showTour, setShowTour] = useState(false); // Auto Highlight Tour
+  const [tokenToast, setTokenToast] = useState(false); // Token Gain Toast
   
   // Failure Recovery States
   const [reflectionOpen, setReflectionOpen] = useState(false);
@@ -1810,7 +1855,8 @@ export default function App() {
               setDoc(userDocRef, { 
                   displayName: user.displayName || 'Anonymous Agent',
                   email: user.email,
-                  joinedAt: serverTimestamp()
+                  joinedAt: serverTimestamp(),
+                  tokens: 3 // Give 3 starter tokens
               }, { merge: true });
               setIsOnboarding(true);
           }
@@ -2013,6 +2059,25 @@ export default function App() {
         setTimeout(() => setShowFirstWin(false), 3500); // Hide reward after 3.5s
     }
 
+    // TOKEN REWARD LOGIC: Earn 1 Token every 7-day streak
+    const newStreak = calculateStreak(newHistory);
+    // Only give token if completing, streak > 0, and streak is a multiple of 7
+    if (isCompleting && newStreak > 0 && newStreak % 7 === 0) {
+        const currentTokens = userProfile?.tokens !== undefined ? userProfile.tokens : 3;
+        const newTokens = currentTokens + 1;
+        
+        if (user.uid === 'local-user') {
+            updateLocalProfile({ tokens: newTokens });
+        } else {
+            const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+            await updateDoc(userDocRef, { tokens: newTokens });
+        }
+        
+        // Show Token Toast
+        setTokenToast(true);
+        setTimeout(() => setTokenToast(false), 4000);
+    }
+
     let updatedHabits = [...habits];
     updatedHabits[habitIndex] = { ...habit, history: newHistory };
 
@@ -2034,11 +2099,25 @@ export default function App() {
 
   // NEW: Confirm Repair
   const confirmRepair = async () => {
+      const currentTokens = userProfile?.tokens !== undefined ? userProfile.tokens : 3; // Default to 3
+
       if (pendingRepair) {
-          await handleToggleHabit(pendingRepair.habitId, pendingRepair.dateKey);
-          setPendingRepair(null);
-          setReflectionOpen(false);
-          // Decrease token logic here if we were actually tracking token count in DB
+          if (currentTokens > 0) {
+              await handleToggleHabit(pendingRepair.habitId, pendingRepair.dateKey);
+              
+              const newTokens = currentTokens - 1;
+              if (user.uid === 'local-user') {
+                  updateLocalProfile({ tokens: newTokens });
+              } else {
+                  const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                  await updateDoc(userDocRef, { tokens: newTokens });
+              }
+              
+              setPendingRepair(null);
+              setReflectionOpen(false);
+          } else {
+              alert("Not enough tokens!"); 
+          }
       }
   };
 
@@ -2092,7 +2171,8 @@ export default function App() {
           updateLocalProfile({ 
               archetype: archetypeId, 
               manifesto: arch.manifesto,
-              displayName: user.displayName 
+              displayName: user.displayName,
+              tokens: 3 // Local starter tokens
           });
           // Add default habits locally
           const newHabits = defaultHabits.map((h, i) => ({
@@ -2107,7 +2187,8 @@ export default function App() {
           await setDoc(userDocRef, { 
               archetype: archetypeId,
               manifesto: arch.manifesto,
-              displayName: user.displayName 
+              displayName: user.displayName,
+              tokens: 3 // Cloud starter tokens
           }, { merge: true });
           // Add default habits to firestore
           for (const h of defaultHabits) {
@@ -2120,7 +2201,10 @@ export default function App() {
       }
       setIsOnboarding(false);
       setTutorialMode(true); // Enable First Win mode
-      setShowTour(true); // Trigger the Highlighter Tour automatically
+      // Add small delay to ensure DOM is painted before tour starts on mobile
+      setTimeout(() => {
+          setShowTour(true); 
+      }, 500);
   };
 
   // NEW: Hardcore Mode Toggle
@@ -2150,18 +2234,20 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black">
+    <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black">
       {isOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
       {showFirstWin && <SystemOnlineOverlay />}
       <ReflectionModal 
         isOpen={reflectionOpen} 
         onClose={() => setReflectionOpen(false)} 
         onRecover={confirmRepair}
+        tokens={userProfile?.tokens !== undefined ? userProfile.tokens : 3}
       />
       <UserGuide 
         isOpen={showGuide}
         onClose={() => setShowGuide(false)}
       />
+      <TokenToast visible={tokenToast} />
       
       {/* Interactive Tour Overlay */}
       <GameTutorial 
@@ -2285,8 +2371,6 @@ export default function App() {
                   onOpenNewHabit={() => setIsModalOpen(true)}
                   onDelete={handleDeleteHabit}
                   onUpdateField={handleUpdateField}
-                  strictMode={strictMode}
-                  toggleStrictMode={toggleStrictMode}
                   tutorialMode={tutorialMode}
                 />
              </section>
