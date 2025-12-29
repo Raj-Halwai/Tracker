@@ -254,7 +254,7 @@ const ACHIEVEMENTS = [
 const TokenToast = ({ visible }) => {
     if (!visible) return null;
     return (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in zoom-in slide-in-from-top-4 duration-500 pointer-events-none">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in zoom-in slide-in-from-top-4 duration-500 pointer-events-none w-[90%] max-w-sm">
             <div className="bg-lime-900/90 border border-lime-400/50 text-lime-400 px-6 py-4 rounded-2xl shadow-[0_0_30px_rgba(163,230,53,0.3)] flex items-center gap-3 backdrop-blur-md">
                 <div className="bg-lime-400 text-black p-2 rounded-lg">
                     <Gift size={24} strokeWidth={3} />
@@ -335,7 +335,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
                   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   updatePosition();
              }
-        }, 500); // 500ms delay for mobile
+        }, 1000); // Increased delay for mobile robustness
 
         // Continuously update position
         const interval = setInterval(updatePosition, 100);
@@ -354,6 +354,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
     if (!isActive) return null;
     
     // Safety check: if coords are 0 (element not found), don't show tooltip yet
+    // This prevents the "blank screen" issue while waiting for elements to render
     if (coords.width === 0) return null;
 
     const currentStep = STEPS[step];
