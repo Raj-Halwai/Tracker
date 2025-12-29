@@ -104,6 +104,48 @@ import {
   getDoc 
 } from 'firebase/firestore';
 
+// --- Error Boundary Component (Prevents White Screen) ---
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({ error, errorInfo });
+    console.error("CRITICAL UI ERROR:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[100dvh] bg-black text-red-500 p-8 flex flex-col items-center justify-center text-center font-mono">
+          <ShieldAlert size={64} className="mb-6 animate-pulse" />
+          <h1 className="text-3xl font-black mb-2 text-white">SYSTEM FAILURE</h1>
+          <p className="text-zinc-500 text-xs mb-6">The interface crashed. Report the code below.</p>
+          <div className="bg-zinc-900 border border-red-900/50 p-4 rounded-xl mb-6 max-w-full overflow-auto text-left w-full">
+            <p className="text-red-400 text-xs break-all">
+              {this.state.error && this.state.error.toString()}
+            </p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-white text-black px-8 py-3 rounded-xl font-black hover:bg-zinc-200 transition-colors"
+          >
+            REBOOT SYSTEM
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children; 
+  }
+}
+
 // --- Firebase Initialization ---
 const getFirebaseConfig = () => {
   try {
@@ -285,7 +327,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-grid',
             title: "THE GRID",
             text: "Your command center. Each row is a habit, each box is a day. Click a box to toggle it. Green means done. Red means missed.",
-            position: 'top' // Force tooltip above to avoid being cut off on mobile
+            position: 'top'
         },
         {
             target: 'tour-add-btn',
@@ -297,7 +339,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-nav-squad',
             title: "SQUAD SYNC",
             text: "Don't fight alone. Click the Squad tab to create a leaderboard with friends or family.",
-            position: 'top' // Force above nav bar
+            position: 'top'
         }
     ];
 
@@ -355,11 +397,10 @@ const GameTutorial = ({ isActive, onComplete }) => {
     if (!isActive) return null;
     
     // Safety check: if coords are 0 (element not found), don't show tooltip yet
-    // This prevents the "blank screen" issue while waiting for elements to render
     if (coords.width === 0) return null;
 
     const currentStep = STEPS[step];
-    if (!currentStep) return null; // Safety check
+    if (!currentStep) return null;
 
     const handleNext = () => {
         if (step < STEPS.length - 1) {
@@ -1586,11 +1627,14 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
               <div className="bg-black/40 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
                   <div>
                       <p className="text-xs text-zinc-500 font-mono mb-1">ARCHETYPE</p>
-                      <p className="text-lg font-black text-white">{userProfile?.archetype ? (ARCHETYPES[userProfile.archetype.toUpperCase()]?.title || 'UNKNOWN') : 'UNASSIGNED'}</p>
+                      <p className="text-lg font-black text-white">
+                        {userProfile?.archetype ? (ARCHETYPES[userProfile.archetype.toUpperCase()]?.title || 'UNKNOWN') : 'UNASSIGNED'}
+                      </p>
                   </div>
                   <div className="p-2 bg-zinc-900 rounded-lg text-zinc-500">
                       {userProfile?.archetype && (() => {
-                          const arch = ARCHETYPES[userProfile.archetype.toUpperCase()];
+                          const archKey = userProfile.archetype.toUpperCase();
+                          const arch = ARCHETYPES[archKey];
                           const Icon = arch?.icon || UserCircle;
                           return <Icon size={20} />;
                       })()}
@@ -1757,14 +1801,15 @@ export default function App() {
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [tutorialMode, setTutorialMode] = useState(false);
   const [showFirstWin, setShowFirstWin] = useState(false);
-  const [showGuide, setShowGuide] = useState(false); // Manual Guide
-  const [showTour, setShowTour] = useState(false); // Auto Highlight Tour
-  const [tokenToast, setTokenToast] = useState(false); // Token Gain Toast
+  const [showGuide, setShowGuide] = useState(false); 
+  const [showTour, setShowTour] = useState(false);
+  const [tokenToast, setTokenToast] = useState(false); 
   
   // Failure Recovery States
   const [reflectionOpen, setReflectionOpen] = useState(false);
   const [pendingRepair, setPendingRepair] = useState(null); // { habitId, dateKey }
 
+  // ... (Hooks and Logic remain the same) ...
   // 1. Auth Listener
   useEffect(() => {
     if (firebaseConfig.apiKey === "PLACEHOLDER") {
@@ -2249,6 +2294,7 @@ export default function App() {
   }
 
   return (
+    <ErrorBoundary>
     <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black overflow-x-hidden">
       {isOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
       {showFirstWin && <SystemOnlineOverlay />}
@@ -2419,5 +2465,6 @@ export default function App() {
         }
       `}</style>
     </div>
+    </ErrorBoundary>
   );
 }
