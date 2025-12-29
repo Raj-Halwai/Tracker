@@ -339,7 +339,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-nav-squad',
             title: "SQUAD SYNC",
             text: "Don't fight alone. Click the Squad tab to create a leaderboard with friends or family.",
-            position: 'top'
+            position: 'bottom'
         }
     ];
 
@@ -353,6 +353,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             if (element) {
                 try {
                     const rect = element.getBoundingClientRect();
+                    // Check if element is actually visible/rendered to avoid 0x0 box
                     if (rect.width > 0 && rect.height > 0) {
                         setCoords({
                             top: rect.top, 
@@ -368,6 +369,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             }
         };
 
+        // Delay initial calculation to allow mobile render
         const initTimer = setTimeout(() => {
              const currentStep = STEPS[step];
              if (!currentStep) return;
@@ -376,8 +378,9 @@ const GameTutorial = ({ isActive, onComplete }) => {
                   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   updatePosition();
              }
-        }, 1500); 
+        }, 1500); // Increased delay for mobile robustness
 
+        // Continuously update position
         const interval = setInterval(updatePosition, 100);
 
         window.addEventListener('resize', updatePosition);
@@ -393,6 +396,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
 
     if (!isActive) return null;
     
+    // Safety check: if coords are 0 (element not found), don't show tooltip yet
     if (coords.width === 0) return null;
 
     const currentStep = STEPS[step];
@@ -408,6 +412,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
 
     return (
         <div className="fixed inset-0 z-[9999] overflow-hidden pointer-events-none">
+            {/* The Backdrop */}
             <div 
                 className="absolute transition-all duration-300 ease-out border-2 border-lime-400 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] pointer-events-auto"
                 style={{
@@ -420,13 +425,14 @@ const GameTutorial = ({ isActive, onComplete }) => {
                 <div className="absolute inset-0 bg-lime-400/10 animate-pulse rounded-lg pointer-events-none"></div>
             </div>
 
+            {/* The Tooltip */}
             <div 
                 className="absolute transition-all duration-300 z-[10000] max-w-xs w-full pointer-events-auto px-4"
                 style={{
                     top: currentStep.position === 'bottom' ? coords.top + coords.height + 20 : 
                          currentStep.position === 'top' ? coords.top - 20 : 
                          coords.top,
-                    left: '50%', 
+                    left: '50%', // Center horizontally on mobile
                     transform: `translateX(-50%) ${currentStep.position === 'top' ? 'translateY(-100%)' : ''}`
                 }}
             >
