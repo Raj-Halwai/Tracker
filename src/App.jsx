@@ -38,28 +38,29 @@ import {
   Download, 
   ShieldAlert, 
   Medal, 
-  Sparkles,
-  Share,
-  Camera,
-  Star,
-  Award,
-  Moon,
-  Briefcase,
-  GraduationCap,
-  Sword,
-  Book,
-  ArrowDown,
-  Clock,
-  Sun,
-  Sunset,
-  Sunrise,
-  Repeat,
-  Skull,
-  ZapOff,
-  BookOpen,
-  HelpCircle,
-  Navigation,
-  Gift
+  Sparkles, 
+  Share, 
+  Camera, 
+  Star, 
+  Award, 
+  Moon, 
+  Briefcase, 
+  GraduationCap, 
+  Sword, 
+  Book, 
+  ArrowDown, 
+  Clock, 
+  Sun, 
+  Sunset, 
+  Sunrise, 
+  Repeat, 
+  Skull, 
+  ZapOff, 
+  BookOpen, 
+  HelpCircle, 
+  Navigation, 
+  Gift,
+  Loader2 
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -74,7 +75,7 @@ import {
   Cell, 
   BarChart, 
   Bar, 
-  Legend
+  Legend 
 } from 'recharts';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -102,6 +103,48 @@ import {
   setDoc, 
   getDoc 
 } from 'firebase/firestore';
+
+// --- Error Boundary Component (Prevents White Screen) ---
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({ error, errorInfo });
+    console.error("CRITICAL UI ERROR:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[100dvh] bg-black text-red-500 p-8 flex flex-col items-center justify-center text-center font-mono">
+          <ShieldAlert size={64} className="mb-6 animate-pulse" />
+          <h1 className="text-3xl font-black mb-2 text-white">SYSTEM FAILURE</h1>
+          <p className="text-zinc-500 text-xs mb-6">The interface crashed. Report the code below.</p>
+          <div className="bg-zinc-900 border border-red-900/50 p-4 rounded-xl mb-6 max-w-full overflow-auto text-left w-full">
+            <p className="text-red-400 text-xs break-all">
+              {this.state.error && this.state.error.toString()}
+            </p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-white text-black px-8 py-3 rounded-xl font-black hover:bg-zinc-200 transition-colors"
+          >
+            REBOOT SYSTEM
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children; 
+  }
+}
 
 // --- Firebase Initialization ---
 const getFirebaseConfig = () => {
@@ -254,7 +297,7 @@ const ACHIEVEMENTS = [
 const TokenToast = ({ visible }) => {
     if (!visible) return null;
     return (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in zoom-in slide-in-from-top-4 duration-500 pointer-events-none">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in zoom-in slide-in-from-top-4 duration-500 pointer-events-none w-[90%] max-w-sm">
             <div className="bg-lime-900/90 border border-lime-400/50 text-lime-400 px-6 py-4 rounded-2xl shadow-[0_0_30px_rgba(163,230,53,0.3)] flex items-center gap-3 backdrop-blur-md">
                 <div className="bg-lime-400 text-black p-2 rounded-lg">
                     <Gift size={24} strokeWidth={3} />
@@ -284,7 +327,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-grid',
             title: "THE GRID",
             text: "Your command center. Each row is a habit, each box is a day. Click a box to toggle it. Green means done. Red means missed.",
-            position: 'top' // Force tooltip above to avoid being cut off on mobile
+            position: 'top'
         },
         {
             target: 'tour-add-btn',
@@ -296,7 +339,7 @@ const GameTutorial = ({ isActive, onComplete }) => {
             target: 'tour-nav-squad',
             title: "SQUAD SYNC",
             text: "Don't fight alone. Click the Squad tab to create a leaderboard with friends or family.",
-            position: 'top' // Force above nav bar
+            position: 'top'
         }
     ];
 
@@ -310,7 +353,6 @@ const GameTutorial = ({ isActive, onComplete }) => {
             if (element) {
                 try {
                     const rect = element.getBoundingClientRect();
-                    // Check if element is actually visible/rendered to avoid 0x0 box
                     if (rect.width > 0 && rect.height > 0) {
                         setCoords({
                             top: rect.top, 
@@ -326,7 +368,6 @@ const GameTutorial = ({ isActive, onComplete }) => {
             }
         };
 
-        // Delay initial calculation to allow mobile render
         const initTimer = setTimeout(() => {
              const currentStep = STEPS[step];
              if (!currentStep) return;
@@ -335,9 +376,8 @@ const GameTutorial = ({ isActive, onComplete }) => {
                   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   updatePosition();
              }
-        }, 500); // 500ms delay for mobile
+        }, 1500); 
 
-        // Continuously update position
         const interval = setInterval(updatePosition, 100);
 
         window.addEventListener('resize', updatePosition);
@@ -353,11 +393,10 @@ const GameTutorial = ({ isActive, onComplete }) => {
 
     if (!isActive) return null;
     
-    // Safety check: if coords are 0 (element not found), don't show tooltip yet
     if (coords.width === 0) return null;
 
     const currentStep = STEPS[step];
-    if (!currentStep) return null; // Safety check
+    if (!currentStep) return null;
 
     const handleNext = () => {
         if (step < STEPS.length - 1) {
@@ -369,7 +408,6 @@ const GameTutorial = ({ isActive, onComplete }) => {
 
     return (
         <div className="fixed inset-0 z-[9999] overflow-hidden pointer-events-none">
-            {/* The Backdrop */}
             <div 
                 className="absolute transition-all duration-300 ease-out border-2 border-lime-400 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] pointer-events-auto"
                 style={{
@@ -382,14 +420,13 @@ const GameTutorial = ({ isActive, onComplete }) => {
                 <div className="absolute inset-0 bg-lime-400/10 animate-pulse rounded-lg pointer-events-none"></div>
             </div>
 
-            {/* The Tooltip */}
             <div 
                 className="absolute transition-all duration-300 z-[10000] max-w-xs w-full pointer-events-auto px-4"
                 style={{
                     top: currentStep.position === 'bottom' ? coords.top + coords.height + 20 : 
                          currentStep.position === 'top' ? coords.top - 20 : 
                          coords.top,
-                    left: '50%', // Center horizontally on mobile
+                    left: '50%', 
                     transform: `translateX(-50%) ${currentStep.position === 'top' ? 'translateY(-100%)' : ''}`
                 }}
             >
@@ -504,7 +541,7 @@ const UserGuide = ({ isOpen, onClose }) => {
     const current = pages[page];
 
     return (
-        <div className="fixed inset-0 z-[90] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[90] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-zinc-900 w-full max-w-lg rounded-3xl border border-zinc-800 overflow-hidden shadow-2xl relative">
                 <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X size={24}/></button>
                 
@@ -570,7 +607,7 @@ const OnboardingModal = ({ onComplete }) => {
 
     return (
         <div className="fixed inset-0 z-[70] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4">
-             <div className="max-w-4xl w-full bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl flex flex-col md:flex-row h-[85vh] animate-in zoom-in-95 duration-300">
+             <div className="max-w-4xl w-full bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl flex flex-col md:flex-row h-[85vh]">
                  <div className="w-full md:w-1/3 bg-zinc-950 p-8 flex flex-col justify-between border-r border-zinc-800">
                       <div>
                           <div className="flex items-center gap-2 mb-6">
@@ -632,7 +669,7 @@ const OnboardingModal = ({ onComplete }) => {
                              ))}
                          </div>
                      ) : (
-                         <div className="h-full flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-right">
+                         <div className="h-full flex flex-col items-center justify-center text-center">
                              <div className={`w-24 h-24 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(0,0,0,0.5)]`}>
                                  {(() => {
                                      const Icon = ARCHETYPES[selectedArchetype.toUpperCase()].icon;
@@ -665,7 +702,7 @@ const SystemOnlineOverlay = () => {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300 pointer-events-none">
              <div className="text-center">
-                 <div className="text-6xl mb-4 animate-bounce">ðŸ†</div>
+                 <div className="text-6xl mb-4 animate-bounce">🏆</div>
                  <h1 className="text-4xl md:text-6xl font-black text-lime-400 tracking-tighter mb-2 animate-in zoom-in duration-300">SYSTEM ONLINE</h1>
                  <p className="text-white font-mono text-xl tracking-widest mb-8">PROTOCOL INITIATED</p>
                  <div className="bg-zinc-800 text-lime-400 px-6 py-2 rounded-full font-bold inline-block border border-lime-400/30 shadow-[0_0_30px_rgba(163,230,53,0.4)]">
@@ -1090,7 +1127,7 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
                       
                       {user.uid === 'local-user' && (
                           <div className="mb-6 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-500 text-xs font-bold uppercase tracking-wide">
-                              âš  Local Mode Active: You will only see your own stats. Sign in with Google to sync with others.
+                              ⚠ Local Mode Active: You will only see your own stats. Sign in with Google to sync with others.
                           </div>
                       )}
 
@@ -2233,8 +2270,21 @@ export default function App() {
     return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} isConfigured={isConfigured} />;
   }
 
+  // 4. Loading State Check for Mobile Robustness
+  if (user && !userProfile && user.uid !== 'local-user') {
+    return (
+        <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-4 text-white">
+            <div className="animate-spin text-lime-400 mb-4">
+                <Loader2 size={48} />
+            </div>
+            <p className="text-zinc-500 font-mono text-sm tracking-widest animate-pulse">SYNCING PROFILE...</p>
+        </div>
+    )
+  }
+
   return (
-    <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black">
+    <ErrorBoundary>
+    <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black overflow-x-hidden">
       {isOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
       {showFirstWin && <SystemOnlineOverlay />}
       <ReflectionModal 
@@ -2332,7 +2382,7 @@ export default function App() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full p-2 md:p-6 print:p-0 print:max-w-none flex flex-col">
         {view === 'main' && (
-          <div className="flex-1 animate-in fade-in zoom-in-95 duration-500 flex flex-col gap-8 pb-20">
+          <div className="flex-1 flex flex-col gap-8 pb-20">
              <section>
                 <div className="flex items-center justify-between mb-4 px-2">
                     <div className="flex items-center gap-2">
@@ -2404,5 +2454,6 @@ export default function App() {
         }
       `}</style>
     </div>
+    </ErrorBoundary>
   );
 }
