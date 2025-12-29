@@ -311,154 +311,6 @@ const TokenToast = ({ visible }) => {
     );
 };
 
-// Game-like Highlight Tour Overlay
-const GameTutorial = ({ isActive, onComplete }) => {
-    const [step, setStep] = useState(0);
-    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, height: 0 });
-
-    const STEPS = [
-        {
-            target: 'tour-rank-card',
-            title: "YOUR STATUS",
-            text: "This is your current Rank. As you complete habits, you gain XP. Earning XP unlocks new ranks from 'Drifter' to 'Supreme'.",
-            position: 'bottom'
-        },
-        {
-            target: 'tour-grid',
-            title: "THE GRID",
-            text: "Your command center. Each row is a habit, each box is a day. Click a box to toggle it. Green means done. Red means missed.",
-            position: 'top'
-        },
-        {
-            target: 'tour-add-btn',
-            title: "EXPAND PROTOCOL",
-            text: "Click here to add new habits. You can choose between 'Motivation' (easy) or 'Discipline' (hard) modes.",
-            position: 'bottom'
-        },
-        {
-            target: 'tour-nav-squad',
-            title: "SQUAD SYNC",
-            text: "Don't fight alone. Click the Squad tab to create a leaderboard with friends or family.",
-            position: 'bottom'
-        }
-    ];
-
-    useEffect(() => {
-        if (!isActive) return;
-        
-        const updatePosition = () => {
-            const currentStep = STEPS[step];
-            if (!currentStep) return;
-            const element = document.getElementById(currentStep.target);
-            if (element) {
-                try {
-                    const rect = element.getBoundingClientRect();
-                    // Check if element is actually visible/rendered to avoid 0x0 box
-                    if (rect.width > 0 && rect.height > 0) {
-                        setCoords({
-                            top: rect.top, 
-                            left: rect.left,
-                            width: rect.width,
-                            height: rect.height,
-                            bottom: rect.bottom
-                        });
-                    }
-                } catch (e) {
-                    console.error("Tutorial highlight error:", e);
-                }
-            }
-        };
-
-        // Delay initial calculation to allow mobile render
-        const initTimer = setTimeout(() => {
-             const currentStep = STEPS[step];
-             if (!currentStep) return;
-             const element = document.getElementById(currentStep.target);
-             if(element) {
-                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  updatePosition();
-             }
-        }, 1500); // Increased delay for mobile robustness
-
-        // Continuously update position
-        const interval = setInterval(updatePosition, 100);
-
-        window.addEventListener('resize', updatePosition);
-        window.addEventListener('scroll', updatePosition);
-        
-        return () => {
-            clearTimeout(initTimer);
-            clearInterval(interval);
-            window.removeEventListener('resize', updatePosition);
-            window.removeEventListener('scroll', updatePosition);
-        }
-    }, [step, isActive]);
-
-    if (!isActive) return null;
-    
-    // Safety check: if coords are 0 (element not found), don't show tooltip yet
-    if (coords.width === 0) return null;
-
-    const currentStep = STEPS[step];
-    if (!currentStep) return null;
-
-    const handleNext = () => {
-        if (step < STEPS.length - 1) {
-            setStep(s => s + 1);
-        } else {
-            onComplete();
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[9999] overflow-hidden pointer-events-none">
-            {/* The Backdrop */}
-            <div 
-                className="absolute transition-all duration-300 ease-out border-2 border-lime-400 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] pointer-events-auto"
-                style={{
-                    top: coords.top,
-                    left: coords.left,
-                    width: coords.width,
-                    height: coords.height,
-                }}
-            >
-                <div className="absolute inset-0 bg-lime-400/10 animate-pulse rounded-lg pointer-events-none"></div>
-            </div>
-
-            {/* The Tooltip */}
-            <div 
-                className="absolute transition-all duration-300 z-[10000] max-w-xs w-full pointer-events-auto px-4"
-                style={{
-                    top: currentStep.position === 'bottom' ? coords.top + coords.height + 20 : 
-                         currentStep.position === 'top' ? coords.top - 20 : 
-                         coords.top,
-                    left: '50%', // Center horizontally on mobile
-                    transform: `translateX(-50%) ${currentStep.position === 'top' ? 'translateY(-100%)' : ''}`
-                }}
-            >
-                <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-2xl shadow-2xl relative w-full">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="w-2 h-2 bg-lime-400 rounded-full animate-ping"></div>
-                        <h3 className="text-lime-400 font-black text-sm tracking-widest uppercase">{currentStep.title}</h3>
-                    </div>
-                    <p className="text-white text-sm mb-6 leading-relaxed">
-                        {currentStep.text}
-                    </p>
-                    <div className="flex items-center justify-between">
-                        <p className="text-[10px] text-zinc-500 font-mono">STEP {step + 1}/{STEPS.length}</p>
-                        <button 
-                            onClick={handleNext}
-                            className="bg-white text-black px-4 py-2 rounded-lg text-xs font-bold hover:bg-zinc-200 transition-colors"
-                        >
-                            {step === STEPS.length - 1 ? 'FINISH' : 'NEXT'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
-
 // Reflection Modal (Failure Management)
 const ReflectionModal = ({ isOpen, onClose, onRecover, tokens }) => {
     if (!isOpen) return null;
@@ -664,11 +516,11 @@ const OnboardingModal = ({ onComplete }) => {
                                       <div className="border-t border-zinc-800 pt-4 mt-auto">
                                          <p className="text-[10px] uppercase font-bold text-zinc-600 mb-2">Includes:</p>
                                          <ul className="space-y-1">
-                                             {arch.defaults.map((h, i) => (
-                                                 <li key={i} className="text-xs text-zinc-400 flex items-center gap-2">
-                                                     <Check size={10} className="text-lime-500"/> {h.name}
-                                                 </li>
-                                             ))}
+                                              {arch.defaults.map((h, i) => (
+                                                  <li key={i} className="text-xs text-zinc-400 flex items-center gap-2">
+                                                      <Check size={10} className="text-lime-500"/> {h.name}
+                                                  </li>
+                                              ))}
                                          </ul>
                                       </div>
                                  </button>
@@ -692,27 +544,11 @@ const OnboardingModal = ({ onComplete }) => {
                                     onClick={handleCommit}
                                     className="px-8 py-3 bg-lime-400 text-black font-black rounded-xl hover:bg-lime-300 hover:scale-105 transition-all shadow-[0_0_20px_rgba(163,230,53,0.3)]"
                                  >
-                                     BEGIN PROTOCOL
+                                      BEGIN PROTOCOL
                                  </button>
                              </div>
                          </div>
                      )}
-                 </div>
-             </div>
-        </div>
-    )
-}
-
-// NEW: System Online / First Win Overlay
-const SystemOnlineOverlay = () => {
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300 pointer-events-none">
-             <div className="text-center">
-                 <div className="text-6xl mb-4 animate-bounce">🏆</div>
-                 <h1 className="text-4xl md:text-6xl font-black text-lime-400 tracking-tighter mb-2 animate-in zoom-in duration-300">SYSTEM ONLINE</h1>
-                 <p className="text-white font-mono text-xl tracking-widest mb-8">PROTOCOL INITIATED</p>
-                 <div className="bg-zinc-800 text-lime-400 px-6 py-2 rounded-full font-bold inline-block border border-lime-400/30 shadow-[0_0_30px_rgba(163,230,53,0.4)]">
-                     +100 XP ACQUIRED
                  </div>
              </div>
         </div>
@@ -1293,8 +1129,8 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
     );
 };
 
-// 1. Digital Tracker (Gen Z Dark Mode) - Updated with TutorialMode prop
-const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, tutorialMode, onRepairStreak }) => {
+// 1. Digital Tracker (Gen Z Dark Mode)
+const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, onRepairStreak }) => {
   const daysInMonth = getDaysInMonth(currentDate);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -1329,7 +1165,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
   };
 
   return (
-    <div id="tour-grid" className="flex flex-col h-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800/50 overflow-hidden relative">
+    <div className="flex flex-col h-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800/50 overflow-hidden relative">
       {/* Visual Indicator that System is Secured */}
       <div className={`absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r transition-all duration-500 z-30 from-red-500 via-orange-500 to-yellow-500`}></div>
 
@@ -1347,7 +1183,6 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
             </div>
 
             <button 
-            id="tour-add-btn"
             onClick={onOpenNewHabit}
             className="flex items-center gap-2 px-5 py-2.5 bg-lime-400 text-black rounded-xl hover:bg-lime-300 transition-all shadow-[0_0_15px_rgba(163,230,53,0.3)] text-sm font-bold hover:scale-105 active:scale-95"
             >
@@ -1399,7 +1234,6 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                 const percent = Math.min(100, Math.round((totalCompleted / effectiveGoal) * 100));
                 const isGoalMet = totalCompleted >= effectiveGoal;
                 const streak = calculateStreak(habit.history);
-                const isFirstHabitTutorial = tutorialMode && index === 0;
 
                 // Time Icon Logic
                 let TimeIcon = Clock;
@@ -1408,7 +1242,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                 if(habit.timeOfDay === 'evening') TimeIcon = Sunset;
 
                 return (
-                  <tr key={habit.id} className={`border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group relative ${isFirstHabitTutorial ? 'bg-lime-900/10' : ''}`}>
+                  <tr key={habit.id} className={`border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group relative`}>
                     <td className="p-2 sticky left-0 bg-zinc-900 group-hover:bg-zinc-800/90 z-10 border-r border-zinc-800/50 transition-colors">
                       <div className="flex items-center gap-3 w-full">
                           <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -1452,9 +1286,6 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                       // Disable direct interaction if future
                       const isDisabled = isFuture; 
                       
-                      // Tutorial Highlighting Logic
-                      const isTutorialTarget = isFirstHabitTutorial && isToday(day);
-
                       return (
                         <td key={day} className={`p-0 text-center border-r border-zinc-800/30 ${isToday(day) ? 'bg-lime-900/10' : ''} ${isDisabled ? 'bg-black/40' : ''}`}>
                           <button
@@ -1471,20 +1302,13 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                                 ${isDisabled ? 'cursor-not-allowed opacity-30' : 'cursor-pointer'}
                             `}
                           >
-                            {isTutorialTarget && !isDone && (
-                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center animate-bounce pointer-events-none">
-                                    <span className="text-[9px] bg-lime-400 text-black font-bold px-1 rounded whitespace-nowrap mb-1">START HERE</span>
-                                    <ArrowDown size={12} className="text-lime-400 fill-lime-400"/>
-                                </div>
-                            )}
-
                             {isDone ? (
                                 <div className={`w-6 h-6 rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(163,230,53,0.6)] transform scale-110 transition-transform duration-200
                                     ${isDisabled ? 'bg-zinc-600 grayscale' : 'bg-lime-400 hover:scale-125 hover:rotate-3'}`}>
                                      <Check size={16} strokeWidth={4} className="text-black" />
                                 </div>
                             ) : (
-                                <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isTutorialTarget ? 'bg-lime-500 animate-ping' : (isDisabled ? 'bg-zinc-800' : 'bg-zinc-700 group-hover/btn:bg-zinc-600')}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isDisabled ? 'bg-zinc-800' : 'bg-zinc-700 group-hover/btn:bg-zinc-600'}`}>
                                     {isPast && !isDone && (
                                         <div className="opacity-0 group-hover/btn:opacity-100 absolute inset-0 flex items-center justify-center text-[8px] text-red-500 font-bold">X</div>
                                     )}
@@ -1582,11 +1406,17 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
     return getCount(b) - getCount(a);
   }).slice(0, 5);
 
+  const pieData = [
+    { name: 'Done', value: totalCompletedActual },
+    { name: 'Remaining', value: Math.max(0, totalGoals - totalCompletedActual) }
+  ];
+  const PIE_COLORS = ['#a3e635', '#27272a'];
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 lg:gap-6 animate-fade-in mb-6">
       
       {/* 0. Rank Card with Share Button */}
-      <div id="tour-rank-card" className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
+      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <Medal size={120} className="text-yellow-500" />
          </div>
@@ -1673,8 +1503,52 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
           </div>
       </div>
 
-      {/* 2. Consistency (Line) */}
-      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 min-h-[300px] relative overflow-hidden">
+      {/* 1. Overall Score (Donut) */}
+      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col items-center justify-center min-h-[300px] relative overflow-hidden group hover:border-lime-500/30 transition-colors duration-500">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Target size={80} className="text-lime-400" />
+        </div>
+        <h3 className="text-zinc-500 font-bold mb-2 uppercase text-[10px] tracking-[0.2em]">Efficiency Rating</h3>
+        <div className="relative w-48 h-48">
+          {mounted && (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  innerRadius={65}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                  startAngle={90}
+                  endAngle={-270}
+                  stroke="none"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+          <div className="absolute inset-0 flex items-center justify-center flex-col">
+            <span className="text-5xl font-black text-white tracking-tighter">{completionRate}%</span>
+            <span className="text-[10px] text-lime-400 font-bold uppercase tracking-widest mt-2 bg-lime-400/10 px-2 py-1 rounded">On Track</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 w-full mt-6">
+            <div className="text-center">
+                <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider">Done</p>
+                <p className="text-xl font-black text-white">{totalCompletedActual}</p>
+            </div>
+            <div className="text-center">
+                <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider">Target</p>
+                <p className="text-xl font-black text-zinc-400">{totalGoals}</p>
+            </div>
+        </div>
+      </div>
+
+      {/* 2. Consistency (Line) - Expanded to Full Row for Better Flow */}
+      <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-6 min-h-[300px] relative overflow-hidden">
         <div className="flex justify-between items-start mb-6">
              <h3 className="text-zinc-500 font-bold uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                 <TrendingUp size={14} className="text-fuchsia-500"/> Consistency Flow
@@ -1736,11 +1610,11 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center mb-1.5">
-                       <span className="font-bold text-zinc-200 text-sm truncate pr-2 group-hover:text-white transition-colors">{h.name}</span>
-                       <span className="text-xs font-black text-lime-400 font-mono">{count}/{goal}</span>
+                        <span className="font-bold text-zinc-200 text-sm truncate pr-2 group-hover:text-white transition-colors">{h.name}</span>
+                        <span className="text-xs font-black text-lime-400 font-mono">{count}/{goal}</span>
                     </div>
                     <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
-                       <div className="bg-gradient-to-r from-lime-400 to-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${pct}%` }}></div>
+                        <div className="bg-gradient-to-r from-lime-400 to-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${pct}%` }}></div>
                     </div>
                   </div>
                </div>
@@ -1795,10 +1669,7 @@ export default function App() {
 
   // New States for Onboarding/Gamification
   const [isOnboarding, setIsOnboarding] = useState(false);
-  const [tutorialMode, setTutorialMode] = useState(false);
-  const [showFirstWin, setShowFirstWin] = useState(false);
   const [showGuide, setShowGuide] = useState(false); // Manual Guide
-  const [showTour, setShowTour] = useState(false); // Auto Highlight Tour
   const [tokenToast, setTokenToast] = useState(false); // Token Gain Toast
   
   // Failure Recovery States
@@ -1880,7 +1751,7 @@ export default function App() {
       const unsubscribeHabits = onSnapshot(q, (snapshot) => {
         const loadedHabits = snapshot.docs.map(doc => ({
           ...doc.data(), 
-          id: doc.id,      
+          id: doc.id,       
         }));
         setHabits(loadedHabits);
       });
@@ -2095,13 +1966,6 @@ export default function App() {
       isCompleting = true;
     }
 
-    // First Win Trigger Logic
-    if (tutorialMode && isCompleting) {
-        setTutorialMode(false);
-        setShowFirstWin(true);
-        setTimeout(() => setShowFirstWin(false), 3500); // Hide reward after 3.5s
-    }
-
     // TOKEN REWARD LOGIC: Earn 1 Token every 7-day streak
     const newStreak = calculateStreak(newHistory);
     // Only give token if completing, streak > 0, and streak is a multiple of 7
@@ -2243,11 +2107,6 @@ export default function App() {
           }
       }
       setIsOnboarding(false);
-      setTutorialMode(true); // Enable First Win mode
-      // Add small delay to ensure DOM is painted before tour starts on mobile
-      setTimeout(() => {
-          setShowTour(true); 
-      }, 500);
   };
 
   // NEW: Hardcore Mode Toggle
@@ -2292,7 +2151,6 @@ export default function App() {
     <ErrorBoundary>
     <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black overflow-x-hidden">
       {isOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
-      {showFirstWin && <SystemOnlineOverlay />}
       <ReflectionModal 
         isOpen={reflectionOpen} 
         onClose={() => setReflectionOpen(false)} 
@@ -2304,12 +2162,6 @@ export default function App() {
         onClose={() => setShowGuide(false)}
       />
       <TokenToast visible={tokenToast} />
-      
-      {/* Interactive Tour Overlay */}
-      <GameTutorial 
-        isActive={showTour} 
-        onComplete={() => setShowTour(false)}
-      />
       
       <NewHabitModal 
         isOpen={isModalOpen}
@@ -2344,7 +2196,6 @@ export default function App() {
                 <Layout size={16} /> <span className="hidden md:inline">DASHBOARD</span>
              </button>
              <button 
-                id="tour-nav-squad"
                 onClick={() => setView('squad')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${view === 'squad' ? 'bg-zinc-800 text-lime-400 shadow-sm' : 'text-zinc-500 hover:text-white'}`}
              >
@@ -2389,7 +2240,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl mx-auto w-full p-2 md:p-6 print:p-0 print:max-w-none flex flex-col">
         {view === 'main' && (
           <div className="flex-1 flex flex-col gap-8 pb-20">
-             <section>
+              <section>
                 <div className="flex items-center justify-between mb-4 px-2">
                     <div className="flex items-center gap-2">
                         <Flame className="text-orange-500 fill-orange-500" size={20} />
@@ -2427,7 +2278,6 @@ export default function App() {
                   onOpenNewHabit={() => setIsModalOpen(true)}
                   onDelete={handleDeleteHabit}
                   onUpdateField={handleUpdateField}
-                  tutorialMode={tutorialMode}
                 />
              </section>
           </div>
