@@ -59,7 +59,8 @@ import {
   BookOpen,
   HelpCircle,
   Navigation,
-  Gift
+  Gift,
+  Loader2
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -1585,11 +1586,12 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
               <div className="bg-black/40 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
                   <div>
                       <p className="text-xs text-zinc-500 font-mono mb-1">ARCHETYPE</p>
-                      <p className="text-lg font-black text-white">{userProfile?.archetype ? ARCHETYPES[userProfile.archetype.toUpperCase()]?.title : 'UNASSIGNED'}</p>
+                      <p className="text-lg font-black text-white">{userProfile?.archetype ? (ARCHETYPES[userProfile.archetype.toUpperCase()]?.title || 'UNKNOWN') : 'UNASSIGNED'}</p>
                   </div>
                   <div className="p-2 bg-zinc-900 rounded-lg text-zinc-500">
                       {userProfile?.archetype && (() => {
-                          const Icon = ARCHETYPES[userProfile.archetype.toUpperCase()]?.icon || UserCircle;
+                          const arch = ARCHETYPES[userProfile.archetype.toUpperCase()];
+                          const Icon = arch?.icon || UserCircle;
                           return <Icon size={20} />;
                       })()}
                   </div>
@@ -2234,8 +2236,20 @@ export default function App() {
     return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} isConfigured={isConfigured} />;
   }
 
+  // 4. Loading State Check for Mobile Robustness
+  if (user && !userProfile && user.uid !== 'local-user') {
+    return (
+        <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-4 text-white">
+            <div className="animate-spin text-lime-400 mb-4">
+                <Loader2 size={48} />
+            </div>
+            <p className="text-zinc-500 font-mono text-sm tracking-widest animate-pulse">SYNCING PROFILE...</p>
+        </div>
+    )
+  }
+
   return (
-    <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black">
+    <div className="min-h-[100dvh] bg-black text-zinc-100 font-sans flex flex-col selection:bg-lime-400 selection:text-black overflow-x-hidden">
       {isOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
       {showFirstWin && <SystemOnlineOverlay />}
       <ReflectionModal 
