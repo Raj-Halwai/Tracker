@@ -1235,7 +1235,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                         </span>
                         <button
                             onClick={() => changeDay(1)}
-                            disabled={selectedDate.setHours(0, 0, 0, 0) >= new Date().setHours(0, 0, 0, 0)}
+                            disabled={new Date(selectedDate).setHours(0,0,0,0) >= new Date().setHours(0,0,0,0)}
                             className="p-1 hover:text-white text-zinc-400 disabled:opacity-30"
                         >
                             <ChevronRight size={16} />
