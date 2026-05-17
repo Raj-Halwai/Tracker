@@ -960,10 +960,10 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
     };
 
     const copySquadCode = () => {
-        if (userProfile?.squadId) {
-            navigator.clipboard.writeText(userProfile.squadId);
-        }
+    if (userProfile?.squadId && navigator.clipboard) {
+        navigator.clipboard.writeText(userProfile.squadId);
     }
+}
 
     if (!userProfile?.squadId) {
         return (
