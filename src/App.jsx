@@ -88,7 +88,9 @@ import {
     GoogleAuthProvider,
     signInWithPopup,
     signOut,
-    updateProfile
+    updateProfile,
+    setPersistence,
+    browserLocalPersistence
 } from 'firebase/auth';
 import {
     getFirestore,
@@ -1138,7 +1140,9 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
 
 // 1. Digital Tracker (Gen Z Dark Mode) with Mobile "Day Mode"
 const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, onRepairStreak }) => {
-    const [viewMode, setViewMode] = useState(window.innerWidth < 768 ? 'day' : 'month');
+    const [viewMode, setViewMode] = useState(
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'month'
+);
     const [selectedDate, setSelectedDate] = useState(new Date());
 
     const daysInMonth = getDaysInMonth(currentDate);
@@ -1993,28 +1997,38 @@ export default function App() {
 
     // --- Auth Handlers ---
     const handleGoogleLogin = async (identityData) => {
-        if (firebaseConfig.apiKey === "PLACEHOLDER") {
-            setAuthError("Database not configured.");
-            return;
-        }
-        const provider = new GoogleAuthProvider();
-        try {
-            const result = await signInWithPopup(auth, provider);
-            const user = result.user;
-            const displayName = `${identityData.firstName} ${identityData.lastName}`;
-            await updateProfile(user, { displayName });
-            const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
-            await setDoc(userDocRef, {
-                displayName,
-                email: user.email,
-                lastActive: serverTimestamp()
-            }, { merge: true });
+    if (firebaseConfig.apiKey === "PLACEHOLDER") {
+        setAuthError("Database not configured.");
+        return;
+    }
 
-        } catch (error) {
-            console.error("Login failed:", error);
-            setAuthError(error.message);
-        }
-    };
+    const provider = new GoogleAuthProvider();
+
+    try {
+
+        await setPersistence(auth, browserLocalPersistence);
+
+        const result = await signInWithPopup(auth, provider);
+
+        const user = result.user;
+
+        const displayName = `${identityData.firstName} ${identityData.lastName}`;
+
+        await updateProfile(user, { displayName });
+
+        const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+
+        await setDoc(userDocRef, {
+            displayName,
+            email: user.email,
+            lastActive: serverTimestamp()
+        }, { merge: true });
+
+    } catch (error) {
+        console.error("Login failed:", error);
+        setAuthError(error.message);
+    }
+};
 
     const handleLocalMode = (identityData) => {
         const displayName = `${identityData.firstName} ${identityData.lastName}`;
