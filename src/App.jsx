@@ -137,7 +137,9 @@ class ErrorBoundary extends React.Component {
                         </p>
                     </div>
                     <button
-                        onClick={() => window.location.reload()}
+                        onClick={() => if (typeof window !== 'undefined') {
+   window.location.reload();
+}}
                         className="bg-white text-black px-8 py-3 rounded-xl font-black hover:bg-zinc-200 transition-colors"
                     >
                         REBOOT SYSTEM
