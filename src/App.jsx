@@ -15,8 +15,7 @@ import {
 } from 'recharts';
 import { initializeApp } from 'firebase/app';
 import {
-    getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken,
-    signOut, updateProfile
+    getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut
 } from 'firebase/auth';
 import {
     getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot,
