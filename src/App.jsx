@@ -80,6 +80,22 @@ const getFirebaseConfig = () => {
             console.error("Failed to parse firebase config", e);
         }
     }
+    
+    try {
+        if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
+            return {
+                apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+                authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+                projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+                storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+                messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+                appId: import.meta.env.VITE_FIREBASE_APP_ID
+            };
+        }
+    } catch (e) {
+        // Silently ignore if import.meta is not supported in the current environment
+    }
+
     return { apiKey: "PLACEHOLDER", projectId: "PLACEHOLDER" };
 };
 
