@@ -88,9 +88,7 @@ import {
     GoogleAuthProvider,
     signInWithPopup,
     signOut,
-    updateProfile,
-    setPersistence,
-    browserLocalPersistence
+    updateProfile
 } from 'firebase/auth';
 import {
     getFirestore,
@@ -108,7 +106,8 @@ import {
     getDoc
 } from 'firebase/firestore';
 
-// SAFE STORAGE WRAPPER (Prevents iOS Private Mode Crash)
+
+// SAFE STORAGE WRAPPER (Prevents iOS Private Mode Fatal Crash)
 const safeStorage = {
     get: (key) => {
         try { return localStorage.getItem(key); } catch { return null; }
@@ -170,8 +169,7 @@ class ErrorBoundary extends React.Component {
 // --- Firebase Initialization ---
 const getFirebaseConfig = () => {
     try {
-        // Safely check for import.meta without causing a SyntaxError in older browsers
-        if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
+        if (import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
             return {
                 apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
                 authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -182,7 +180,6 @@ const getFirebaseConfig = () => {
             };
         }
     } catch (e) { }
-    
     if (typeof __firebase_config !== 'undefined') {
         return JSON.parse(__firebase_config);
     }
@@ -197,6 +194,7 @@ const db = getFirestore(app);
 // FIX: Sanitize appId to ensure no paths/slashes break Firestore references
 const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'me-supreme-tracker';
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
 
 // --- Archetypes Configuration ---
 const ARCHETYPES = {
@@ -318,6 +316,7 @@ const ACHIEVEMENTS = [
     },
     { id: 'dedication', name: 'Full House', desc: '5 Active Habits', icon: Grid, condition: (habits) => habits.length >= 5 }
 ];
+
 
 // --- Components ---
 
@@ -813,25 +812,20 @@ const NewHabitModal = ({ isOpen, onClose, onConfirm }) => {
     );
 };
 
+
 // 1. Login Screen
-const LoginView = ({ onLogin, onLocalMode, error, isConfigured }) => {
+const LoginView = ({ onLogin, onLocalMode, error, isConfigured, isLoggingIn }) => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [validationMsg, setValidationMsg] = useState('');
-    const [isLoggingIn, setIsLoggingIn] = useState(false); // Loading state for login
 
-    const validateAndSubmit = async (action) => {
+    const validateAndSubmit = (action) => {
         if (!firstName.trim() || !lastName.trim()) {
             setValidationMsg("Identity Protocol Failed: Name & Surname Required");
             return;
         }
         setValidationMsg('');
-        setIsLoggingIn(true);
-        try {
-            await action({ firstName: firstName.trim(), lastName: lastName.trim() });
-        } finally {
-            setIsLoggingIn(false);
-        }
+        action({ firstName: firstName.trim(), lastName: lastName.trim() });
     };
 
     return (
@@ -894,7 +888,7 @@ const LoginView = ({ onLogin, onLocalMode, error, isConfigured }) => {
                 ${isConfigured && !isLoggingIn ? 'bg-white text-black hover:bg-zinc-200' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}
             `}
                     >
-                        {isLoggingIn 
+                        {isLoggingIn
                             ? <><Loader2 size={20} className="animate-spin" /> CONNECTING...</>
                             : <><Globe size={20} className={isConfigured ? "group-hover:rotate-12 transition-transform" : ""} /> {isConfigured ? 'INITIALIZE CLOUD SYNC' : 'CLOUD UNAVAILABLE'}</>
                         }
@@ -1166,10 +1160,12 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
     );
 };
 
+
 // 1. Digital Tracker (Gen Z Dark Mode) with Mobile "Day Mode"
 const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, onRepairStreak }) => {
-    // FIX: Safely check window size for SSR to prevent hydration errors
-    const [viewMode, setViewMode] = useState('day');
+    const [viewMode, setViewMode] = useState('month'); // Default safe state
+
+    // Safely apply screen width strictly on client-side
     useEffect(() => {
         if (typeof window !== 'undefined') {
             setViewMode(window.innerWidth < 768 ? 'day' : 'month');
@@ -1814,6 +1810,7 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
     );
 };
 
+
 // --- Main App Component ---
 
 export default function App() {
@@ -1821,7 +1818,6 @@ export default function App() {
     const [userProfile, setUserProfile] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
 
-    // Default View is 'grid' (Tracker)
     const [view, setView] = useState('grid');
     const [habits, setHabits] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -1832,22 +1828,14 @@ export default function App() {
     const [isShareOpen, setIsShareOpen] = useState(false);
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isIOS, setIsIOS] = useState(false);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-    // New States for Onboarding/Gamification
+    // Gamification & Modals
     const [isOnboarding, setIsOnboarding] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [tokenToast, setTokenToast] = useState(false);
-
-    // Failure Recovery States
     const [reflectionOpen, setReflectionOpen] = useState(false);
     const [pendingRepair, setPendingRepair] = useState(null);
-
-    // Setup persistence ONE TIME on mount (fixes iOS async login blocking)
-    useEffect(() => {
-        if (firebaseConfig.apiKey !== "PLACEHOLDER") {
-            setPersistence(auth, browserLocalPersistence).catch(console.error);
-        }
-    }, []);
 
     // 1. Auth Listener
     useEffect(() => {
@@ -1894,11 +1882,10 @@ export default function App() {
 
         if (user.uid === 'local-user') {
             try {
-                // Using safeStorage to prevent iOS Private Mode crashes
+                // FIXED: ALL localStorage uses swapped to safeStorage to stop iOS fatal errors
                 const localData = safeStorage.get('me_supreme_habits');
                 const localStrict = safeStorage.get('me_supreme_strict_mode');
                 const localProfile = safeStorage.get('me_supreme_profile');
-                
                 if (localData) {
                     const parsedHabits = JSON.parse(localData);
                     setHabits(parsedHabits);
@@ -1949,6 +1936,7 @@ export default function App() {
                 }
             });
 
+            // FIXED: safeStorage swap here as well
             const savedStrict = safeStorage.get('strictMode');
             if (savedStrict) setStrictMode(JSON.parse(savedStrict));
 
@@ -1965,15 +1953,15 @@ export default function App() {
     useEffect(() => {
         if (!user || habits.length === 0) return;
 
-        if ('Notification' in window) {
-            setNotificationPermission(Notification.permission);
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            try { setNotificationPermission(Notification.permission); } catch (e) {}
         }
 
         const checkAndNotify = () => {
-            if (Notification.permission !== 'granted') return;
+            if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
 
             const now = Date.now();
-            const lastNotif = safeStorage.get('lastNotificationTime');
+            const lastNotif = safeStorage.get('lastNotificationTime'); // FIXED
             const fourHours = 4 * 60 * 60 * 1000;
 
             if (!lastNotif || (now - parseInt(lastNotif) > fourHours)) {
@@ -1988,7 +1976,7 @@ export default function App() {
                             body: `You have ${pendingCount} protocols pending. Maintain discipline.`,
                             icon: '/vite.svg'
                         });
-                        safeStorage.set('lastNotificationTime', now.toString());
+                        safeStorage.set('lastNotificationTime', now.toString()); // FIXED
                     } catch (e) {
                         console.error("Notification failed", e);
                     }
@@ -2000,12 +1988,6 @@ export default function App() {
         const interval = setInterval(checkAndNotify, 60 * 60 * 1000);
         return () => clearInterval(interval);
     }, [user, habits]);
-
-    const requestNotificationPermission = async () => {
-        if (!('Notification' in window)) return;
-        const permission = await Notification.requestPermission();
-        setNotificationPermission(permission);
-    };
 
     const handleInstallApp = async () => {
         if (isIOS) {
@@ -2021,68 +2003,60 @@ export default function App() {
     // --- Helpers ---
     const saveToLocal = (updatedHabits) => {
         setHabits(updatedHabits);
-        safeStorage.set('me_supreme_habits', JSON.stringify(updatedHabits));
+        safeStorage.set('me_supreme_habits', JSON.stringify(updatedHabits)); // FIXED
     };
 
     const updateLocalProfile = (updates) => {
         const newProfile = { ...(userProfile || {}), ...updates };
         setUserProfile(newProfile);
-        safeStorage.set('me_supreme_profile', JSON.stringify(newProfile));
-    };
-
-    const toggleStrictMode = () => {
-        const newVal = !strictMode;
-        setStrictMode(newVal);
-        safeStorage.set('me_supreme_strict_mode', JSON.stringify(newVal));
-        safeStorage.set('strictMode', JSON.stringify(newVal));
+        safeStorage.set('me_supreme_profile', JSON.stringify(newProfile)); // FIXED
     };
 
     // --- Auth Handlers ---
     const handleGoogleLogin = async (identityData) => {
         if (firebaseConfig.apiKey === "PLACEHOLDER") {
-            setAuthError("Database not configured. Cloud features disabled.");
+            setAuthError("Database not configured.");
             return;
         }
-
+        
+        setIsLoggingIn(true);
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
 
         try {
-            // NOTE: setPersistence was moved to an onMount useEffect.
-            // Putting await setPersistence() right here causes iOS Safari to 
-            // break the "user interaction chain" and block the popup!
+            // NOTE: setPersistence removed from here intentionally.
+            // Putting it here causes iOS Safari to block the popup.
             const result = await signInWithPopup(auth, provider);
-            const user = result.user;
+            const firebaseUser = result.user;
             const displayName = `${identityData.firstName} ${identityData.lastName}`;
 
-            await updateProfile(user, { displayName });
+            await updateProfile(firebaseUser, { displayName });
 
-            const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+            const userDocRef = doc(db, 'artifacts', appId, 'users', firebaseUser.uid);
             await setDoc(userDocRef, {
                 displayName,
-                email: user.email,
+                email: firebaseUser.email,
                 lastActive: serverTimestamp()
             }, { merge: true });
 
         } catch (error) {
             console.error("Login failed:", error);
-            // Catch exact iOS blocker error and gracefully display it
             if (error.code === 'auth/popup-blocked') {
-                setAuthError("Popup blocked by browser. Please allow popups or use 'Device Storage Mode'.");
-            } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
-                setAuthError("Login was cancelled.");
+                setAuthError("Popup blocked by browser. Please tap again or allow popups.");
             } else {
                 setAuthError(error.message);
             }
+        } finally {
+            setIsLoggingIn(false);
         }
     };
 
     const handleLocalMode = (identityData) => {
         const displayName = `${identityData.firstName} ${identityData.lastName}`;
         setUser({ uid: 'local-user', isAnonymous: true, displayName });
-        const localProfile = JSON.parse(safeStorage.get('me_supreme_profile') || '{}');
+        const localProfile = JSON.parse(safeStorage.get('me_supreme_profile') || '{}'); // FIXED
         const newProfile = { ...localProfile, displayName };
-        safeStorage.set('me_supreme_profile', JSON.stringify(newProfile));
+        safeStorage.set('me_supreme_profile', JSON.stringify(newProfile)); // FIXED
         setUserProfile(newProfile);
     };
 
@@ -2155,7 +2129,6 @@ export default function App() {
         }
 
         const newStreak = calculateStreak(newHistory);
-        // Token Reward Logic
         if (isCompleting && newStreak > 0 && newStreak % 7 === 0) {
             const currentTokens = userProfile?.tokens !== undefined ? userProfile.tokens : 3;
             const newTokens = currentTokens + 1;
@@ -2311,7 +2284,6 @@ export default function App() {
 
     const isConfigured = firebaseConfig.apiKey !== "PLACEHOLDER";
 
-    // --- Render ---
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 text-white">
@@ -2324,7 +2296,7 @@ export default function App() {
     }
 
     if (!user) {
-        return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} isConfigured={isConfigured} />;
+        return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} isConfigured={isConfigured} isLoggingIn={isLoggingIn} />;
     }
 
     if (user && !userProfile && user.uid !== 'local-user') {
