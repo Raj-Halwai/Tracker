@@ -108,6 +108,22 @@ import {
     getDoc
 } from 'firebase/firestore';
 
+// ─────────────────────────────────────────────────────────────
+// FIX #2 — Safe localStorage wrapper (prevents crash in
+//           iOS Safari Private Mode where storage is disabled)
+// ─────────────────────────────────────────────────────────────
+const safeStorage = {
+    get: (key) => {
+        try { return localStorage.getItem(key); } catch { return null; }
+    },
+    set: (key, val) => {
+        try { localStorage.setItem(key, val); } catch {}
+    },
+    remove: (key) => {
+        try { localStorage.removeItem(key); } catch {}
+    }
+};
+
 // --- Error Boundary Component (Prevents White Screen) ---
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -138,10 +154,10 @@ class ErrorBoundary extends React.Component {
                     </div>
                     <button
                         onClick={() => {
-    if (typeof window !== 'undefined') {
-        window.location.reload();
-    }
-}}
+                            if (typeof window !== 'undefined') {
+                                window.location.reload();
+                            }
+                        }}
                         className="bg-white text-black px-8 py-3 rounded-xl font-black hover:bg-zinc-200 transition-colors"
                     >
                         REBOOT SYSTEM
@@ -179,7 +195,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// FIX: Sanitize appId to ensure no paths/slashes break Firestore references
 const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'me-supreme-tracker';
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -258,16 +273,13 @@ const getFullDateKey = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-// Calculate Streak for a habit
 const calculateStreak = (history) => {
     let streak = 0;
     const today = new Date();
-    // Check up to 365 days back
     for (let i = 0; i < 365; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
         const key = getFullDateKey(d);
-
         if (history && history[key]) {
             streak++;
         } else if (i === 0) {
@@ -279,7 +291,6 @@ const calculateStreak = (history) => {
     return streak;
 };
 
-// Determine Rank based on Total XP
 const getRankInfo = (totalCompleted) => {
     if (totalCompleted < 10) return { title: "Drifter", next: 10, color: "text-zinc-500", progress: (totalCompleted / 10) * 100 };
     if (totalCompleted < 50) return { title: "Novice", next: 50, color: "text-blue-400", progress: ((totalCompleted - 10) / 40) * 100 };
@@ -290,7 +301,6 @@ const getRankInfo = (totalCompleted) => {
     return { title: "Supreme", next: 10000, color: "text-yellow-400", progress: 100 };
 };
 
-// Define Achievements
 const ACHIEVEMENTS = [
     { id: 'first_blood', name: 'First Blood', desc: 'Complete your first habit', icon: Zap, condition: (habits) => habits.some(h => Object.keys(h.history).length > 0) },
     { id: 'streak_7', name: 'Week Warrior', desc: 'Reach a 7 day streak', icon: Flame, condition: (habits) => habits.some(h => calculateStreak(h.history) >= 7) },
@@ -306,7 +316,6 @@ const ACHIEVEMENTS = [
 
 // --- Components ---
 
-// NEW: Toast Notification for Token Gain
 const TokenToast = ({ visible }) => {
     if (!visible) return null;
     return (
@@ -324,7 +333,6 @@ const TokenToast = ({ visible }) => {
     );
 };
 
-// Reflection Modal (Failure Management)
 const ReflectionModal = ({ isOpen, onClose, onRecover, tokens }) => {
     if (!isOpen) return null;
     const reasons = ["Sleep / Fatigue", "Stress / Anxiety", "Travel", "Forgot", "Just Lazy"];
@@ -376,7 +384,6 @@ const ReflectionModal = ({ isOpen, onClose, onRecover, tokens }) => {
     )
 }
 
-// User Guide / Manual Component
 const UserGuide = ({ isOpen, onClose }) => {
     const [page, setPage] = useState(0);
 
@@ -461,7 +468,6 @@ const UserGuide = ({ isOpen, onClose }) => {
     )
 }
 
-// NEW: Onboarding Modal
 const OnboardingModal = ({ onComplete }) => {
     const [step, setStep] = useState(1);
     const [selectedArchetype, setSelectedArchetype] = useState(null);
@@ -568,7 +574,6 @@ const OnboardingModal = ({ onComplete }) => {
     )
 }
 
-// Share Modal (Flex Card)
 const ShareModal = ({ isOpen, onClose, rankInfo, totalXP, habits }) => {
     if (!isOpen) return null;
 
@@ -580,17 +585,14 @@ const ShareModal = ({ isOpen, onClose, rankInfo, totalXP, habits }) => {
             <div className="relative w-full max-w-sm">
                 <button onClick={onClose} className="absolute -top-12 right-0 text-white hover:text-red-500"><X size={24} /></button>
 
-                {/* The Card to Screenshot */}
                 <div className="bg-zinc-900 border-4 border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative">
                     <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-lime-400 via-emerald-500 to-cyan-500"></div>
 
-                    {/* Header */}
                     <div className="p-8 pb-4 text-center">
                         <h2 className="text-3xl font-black text-white tracking-tighter mb-1">TRACKER<span className="text-lime-400">.OS</span></h2>
                         <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-[0.3em]">Status Report</p>
                     </div>
 
-                    {/* Rank */}
                     <div className="px-8 py-4 flex flex-col items-center">
                         <Medal size={64} className="text-yellow-400 mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]" />
                         <h1 className={`text-4xl font-black ${rankInfo.color} uppercase tracking-tighter mb-2`}>{rankInfo.title}</h1>
@@ -599,7 +601,6 @@ const ShareModal = ({ isOpen, onClose, rankInfo, totalXP, habits }) => {
                         </div>
                     </div>
 
-                    {/* Stats Grid */}
                     <div className="grid grid-cols-2 gap-px bg-zinc-800 mt-6 border-t border-zinc-800">
                         <div className="bg-zinc-900 p-6 text-center">
                             <p className="text-zinc-500 text-[9px] uppercase font-bold tracking-widest mb-1">Top Streak</p>
@@ -613,7 +614,6 @@ const ShareModal = ({ isOpen, onClose, rankInfo, totalXP, habits }) => {
                         </div>
                     </div>
 
-                    {/* Footer */}
                     <div className="p-4 bg-black/50 text-center">
                         <p className="text-[9px] text-zinc-600 font-mono">GENERATED BY TRACKER.OS</p>
                     </div>
@@ -630,7 +630,6 @@ const ShareModal = ({ isOpen, onClose, rankInfo, totalXP, habits }) => {
     )
 }
 
-// Achievement Modal
 const AchievementsView = ({ habits, totalXP }) => {
     return (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -656,11 +655,10 @@ const AchievementsView = ({ habits, totalXP }) => {
     )
 }
 
-// 0. New Habit Modal (Updated with Time of Day)
 const NewHabitModal = ({ isOpen, onClose, onConfirm }) => {
     const [name, setName] = useState('');
     const [goal, setGoal] = useState('');
-    const [mode, setMode] = useState(null); // 'motivation' | 'discipline'
+    const [mode, setMode] = useState(null);
     const [showLecture, setShowLecture] = useState(false);
     const [timeOfDay, setTimeOfDay] = useState('anytime');
 
@@ -706,7 +704,6 @@ const NewHabitModal = ({ isOpen, onClose, onConfirm }) => {
                             />
                         </div>
 
-                        {/* Time of Day Context */}
                         <div className="space-y-2">
                             <label className="text-[10px] uppercase font-bold text-zinc-400 tracking-widest">Time Constraint</label>
                             <div className="grid grid-cols-4 gap-2">
@@ -803,14 +800,24 @@ const LoginView = ({ onLogin, onLocalMode, error, isConfigured }) => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [validationMsg, setValidationMsg] = useState('');
+    // ─────────────────────────────────────────────────────────
+    // FIX #1b — Loading state so button shows feedback while
+    //            signInWithPopup is in-flight on iOS
+    // ─────────────────────────────────────────────────────────
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-    const validateAndSubmit = (action) => {
+    const validateAndSubmit = async (action) => {
         if (!firstName.trim() || !lastName.trim()) {
             setValidationMsg("Identity Protocol Failed: Name & Surname Required");
             return;
         }
         setValidationMsg('');
-        action({ firstName: firstName.trim(), lastName: lastName.trim() });
+        setIsLoggingIn(true);
+        try {
+            await action({ firstName: firstName.trim(), lastName: lastName.trim() });
+        } finally {
+            setIsLoggingIn(false);
+        }
     };
 
     return (
@@ -868,13 +875,15 @@ const LoginView = ({ onLogin, onLocalMode, error, isConfigured }) => {
                 <div className="w-full space-y-4">
                     <button
                         onClick={() => validateAndSubmit(onLogin)}
-                        disabled={!isConfigured}
+                        disabled={!isConfigured || isLoggingIn}
                         className={`w-full font-black py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_20px_rgba(255,255,255,0.1)] group
-                ${isConfigured ? 'bg-white text-black hover:bg-zinc-200' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}
-            `}
+                            ${isConfigured && !isLoggingIn ? 'bg-white text-black hover:bg-zinc-200' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}
+                        `}
                     >
-                        <Globe size={20} className={isConfigured ? "group-hover:rotate-12 transition-transform" : ""} />
-                        {isConfigured ? 'INITIALIZE CLOUD SYNC' : 'CLOUD UNAVAILABLE'}
+                        {isLoggingIn
+                            ? <><Loader2 size={20} className="animate-spin" /> CONNECTING...</>
+                            : <><Globe size={20} className="group-hover:rotate-12 transition-transform" /> {isConfigured ? 'INITIALIZE CLOUD SYNC' : 'CLOUD UNAVAILABLE'}</>
+                        }
                     </button>
 
                     <div className="relative py-2">
@@ -888,7 +897,8 @@ const LoginView = ({ onLogin, onLocalMode, error, isConfigured }) => {
 
                     <button
                         onClick={() => validateAndSubmit(onLocalMode)}
-                        className="w-full bg-black/50 hover:bg-black/70 text-zinc-300 font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] border border-white/10 group"
+                        disabled={isLoggingIn}
+                        className="w-full bg-black/50 hover:bg-black/70 text-zinc-300 font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] border border-white/10 group disabled:opacity-50"
                     >
                         <Cpu size={20} className="text-lime-400 group-hover:animate-spin-slow" />
                         DEVICE STORAGE MODE
@@ -964,10 +974,10 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
     };
 
     const copySquadCode = () => {
-    if (userProfile?.squadId && navigator.clipboard) {
-        navigator.clipboard.writeText(userProfile.squadId);
-    }
-}
+        if (userProfile?.squadId && navigator.clipboard) {
+            navigator.clipboard.writeText(userProfile.squadId).catch(console.error);
+        }
+    };
 
     if (!userProfile?.squadId) {
         return (
@@ -1073,7 +1083,6 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
                 </div>
             </div>
 
-            {/* Squad Engagement Addon */}
             <div className="bg-gradient-to-r from-zinc-900 to-zinc-950 border-x border-zinc-800 p-6 flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="flex gap-4 items-center">
                     <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center border border-zinc-700">
@@ -1142,11 +1151,19 @@ const SquadView = ({ user, userProfile, onJoinSquad }) => {
     );
 };
 
-// 1. Digital Tracker (Gen Z Dark Mode) with Mobile "Day Mode"
+// Tracker View
 const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, onUpdateField, onRepairStreak }) => {
-    const [viewMode, setViewMode] = useState(
-    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'month'
-);
+    // ─────────────────────────────────────────────────────────
+    // FIX #4 — Move window.innerWidth into useEffect so it
+    //           doesn't run during SSR / before DOM is ready
+    // ─────────────────────────────────────────────────────────
+    const [viewMode, setViewMode] = useState('day');
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setViewMode(window.innerWidth < 768 ? 'day' : 'month');
+        }
+    }, []);
+
     const [selectedDate, setSelectedDate] = useState(new Date());
 
     const daysInMonth = getDaysInMonth(currentDate);
@@ -1205,10 +1222,8 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
     return (
         <div className="flex flex-col h-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800/50 overflow-hidden relative">
 
-            {/* Visual Indicator that System is Secured */}
             <div className={`absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r transition-all duration-500 z-30 from-red-500 via-orange-500 to-yellow-500`}></div>
 
-            {/* Header */}
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/95 backdrop-blur z-20 sticky top-0">
                 <div className="flex items-center gap-2">
                     <button
@@ -1255,10 +1270,8 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
 
             <div className="flex-1 overflow-auto relative custom-scrollbar bg-black/20 p-4">
 
-                {/* --- DAY VIEW --- */}
                 {viewMode === 'day' && (
                     <div className="max-w-md mx-auto space-y-4 pb-20">
-                        {/* Progress Card */}
                         <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 p-6 rounded-2xl border border-zinc-700 flex items-center justify-between relative overflow-hidden">
                             <div className="absolute top-0 left-0 w-1 h-full bg-lime-400"></div>
                             <div>
@@ -1272,13 +1285,11 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                             </div>
                         </div>
 
-                        {/* Habits List */}
                         <div className="space-y-3">
                             {habits.map(habit => {
                                 const isDone = habit.history?.[formattedDateKey];
                                 const streak = calculateStreak(habit.history);
 
-                                // Icon mapping
                                 let TimeIcon = Clock;
                                 if (habit.timeOfDay === 'morning') TimeIcon = Sunrise;
                                 if (habit.timeOfDay === 'afternoon') TimeIcon = Sun;
@@ -1298,11 +1309,10 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                                             </div>
                                         </div>
 
-                                        {/* HUGE CLICKABLE TOGGLE */}
                                         <button
                                             onClick={() => onToggle(habit.id, formattedDateKey)}
                                             className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 transform active:scale-95 shadow-lg shrink-0
-                                         ${isDone
+                                                ${isDone
                                                     ? 'bg-lime-400 text-black rotate-0 hover:bg-lime-300'
                                                     : 'bg-zinc-800 text-zinc-600 hover:bg-zinc-700 border-2 border-dashed border-zinc-600'
                                                 }`}
@@ -1322,7 +1332,6 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                     </div>
                 )}
 
-                {/* --- MONTH VIEW (Classic Grid) --- */}
                 {viewMode === 'month' && (
                     <div className="min-w-[800px]">
                         <table className="w-full border-collapse text-sm">
@@ -1368,7 +1377,6 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                                         const isGoalMet = totalCompleted >= effectiveGoal;
                                         const streak = calculateStreak(habit.history);
 
-                                        // Time Icon Logic
                                         let TimeIcon = Clock;
                                         if (habit.timeOfDay === 'morning') TimeIcon = Sunrise;
                                         if (habit.timeOfDay === 'afternoon') TimeIcon = Sun;
@@ -1379,7 +1387,6 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                                                 <td className="p-2 sticky left-0 bg-zinc-900 group-hover:bg-zinc-800/90 z-10 border-r border-zinc-800/50 transition-colors">
                                                     <div className="flex items-center gap-3 w-full">
                                                         <div className="flex-1 min-w-0 flex items-center gap-2">
-                                                            {/* Streak Indicator */}
                                                             <div className="flex items-center gap-1 text-orange-500 shrink-0" title={`Current Streak: ${streak} days`}>
                                                                 <Flame size={14} className={streak > 0 ? "fill-orange-500 animate-pulse" : "text-zinc-700"} />
                                                                 <span className={`text-[10px] font-bold ${streak > 0 ? "text-orange-500" : "text-zinc-700"}`}>{streak}</span>
@@ -1412,11 +1419,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                                                     const dateKey = getDateKey(currentDate, day);
                                                     const isDone = habit.history?.[dateKey];
                                                     const isFuture = isFutureDate(day);
-
-                                                    // STRICT MODE ENFORCED: Always true for past days not today
                                                     const isPast = !isToday(day) && new Date(currentDate.getFullYear(), currentDate.getMonth(), day) < new Date();
-
-                                                    // Disable direct interaction if future
                                                     const isDisabled = isFuture;
 
                                                     return (
@@ -1425,19 +1428,19 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
                                                                 disabled={isDisabled}
                                                                 onClick={() => {
                                                                     if (isPast && !isDone) {
-                                                                        onRepairStreak(habit.id, dateKey); // Trigger repair modal
+                                                                        onRepairStreak(habit.id, dateKey);
                                                                     } else {
                                                                         onToggle(habit.id, dateKey);
                                                                     }
                                                                 }}
                                                                 className={`w-full h-10 md:h-12 flex items-center justify-center transition-all duration-300 relative group/btn
-                                        ${isDone ? 'bg-transparent' : 'hover:bg-zinc-800'}
-                                        ${isDisabled ? 'cursor-not-allowed opacity-30' : 'cursor-pointer'}
-                                    `}
+                                                                    ${isDone ? 'bg-transparent' : 'hover:bg-zinc-800'}
+                                                                    ${isDisabled ? 'cursor-not-allowed opacity-30' : 'cursor-pointer'}
+                                                                `}
                                                             >
                                                                 {isDone ? (
                                                                     <div className={`w-6 h-6 rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(163,230,53,0.6)] transform scale-110 transition-transform duration-200
-                                            ${isDisabled ? 'bg-zinc-600 grayscale' : 'bg-lime-400 hover:scale-125 hover:rotate-3'}`}>
+                                                                        ${isDisabled ? 'bg-zinc-600 grayscale' : 'bg-lime-400 hover:scale-125 hover:rotate-3'}`}>
                                                                         <Check size={16} strokeWidth={4} className="text-black" />
                                                                     </div>
                                                                 ) : (
@@ -1483,7 +1486,7 @@ const TrackerView = ({ habits, currentDate, onToggle, onOpenNewHabit, onDelete, 
     );
 };
 
-// 2. Analytics Dashboard (Gen Z Dark Mode)
+// Analytics Dashboard
 const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggleHardcore }) => {
     const daysInMonth = getDaysInMonth(currentDate);
     const [mounted, setMounted] = useState(false);
@@ -1492,14 +1495,12 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
         return () => clearTimeout(timer);
     }, []);
 
-    // Calculate Total XP
     const totalXP = habits.reduce((total, habit) => {
         return total + Object.values(habit.history || {}).filter(val => val === true).length;
     }, 0);
 
     const rankInfo = getRankInfo(totalXP);
 
-    // -- Data Prep --
     const lineData = Array.from({ length: daysInMonth }, (_, i) => {
         const day = i + 1;
         const dateKey = getDateKey(currentDate, day);
@@ -1519,7 +1520,6 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
         weeklyData.push({ week: `WK ${i + 1}`, completed: weekTotal });
     }
 
-    // Calculate based on dynamic goals
     const totalGoals = habits.reduce((acc, h) => acc + ((h.goal && h.goal > 0) ? h.goal : daysInMonth), 0);
 
     const totalCompletedActual = habits.reduce((acc, h) => {
@@ -1550,7 +1550,6 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 lg:gap-6 animate-fade-in pb-20">
 
-            {/* 0. Rank Card with Share Button */}
             <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                     <Medal size={120} className="text-yellow-500" />
@@ -1580,10 +1579,9 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                 </div>
             </div>
 
-            {/* NEW: Identity & Hardcore Mode */}
             <div className={`bg-zinc-900 p-6 rounded-3xl shadow-2xl border col-span-1 md:col-span-1 lg:col-span-2 min-h-[300px] flex flex-col relative overflow-hidden
-        ${userProfile?.hardcoreMode ? 'border-red-500/30' : 'border-zinc-800'}
-      `}>
+                ${userProfile?.hardcoreMode ? 'border-red-500/30' : 'border-zinc-800'}
+            `}>
                 <h3 className="text-zinc-500 font-bold mb-6 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                     <UserCircle size={14} className={userProfile?.hardcoreMode ? "text-red-500" : "text-zinc-400"} /> Identity Layer
                 </h3>
@@ -1627,10 +1625,10 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                         <button
                             onClick={onToggleHardcore}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all
-                        ${userProfile?.hardcoreMode
+                                ${userProfile?.hardcoreMode
                                     ? 'bg-red-500 text-white border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]'
                                     : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-white'}
-                    `}
+                            `}
                         >
                             {userProfile?.hardcoreMode ? 'DISABLE' : 'ENABLE'}
                         </button>
@@ -1638,7 +1636,6 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                 </div>
             </div>
 
-            {/* 1. Overall Score (Donut) */}
             <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-2 flex flex-col items-center justify-center min-h-[300px] relative overflow-hidden group hover:border-lime-500/30 transition-colors duration-500">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                     <Target size={80} className="text-lime-400" />
@@ -1682,7 +1679,6 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                 </div>
             </div>
 
-            {/* 2. Consistency (Line) - Expanded to Full Row for Better Flow */}
             <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-2 lg:col-span-6 min-h-[300px] relative overflow-hidden">
                 <div className="flex justify-between items-start mb-6">
                     <h3 className="text-zinc-500 font-bold uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
@@ -1722,7 +1718,6 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                 </div>
             </div>
 
-            {/* 4. Top Habits List */}
             <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-1 lg:col-span-3 min-h-[300px] overflow-hidden">
                 <h3 className="text-zinc-500 font-bold mb-6 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                     <Trophy className="text-yellow-500" size={14} /> Leaderboard
@@ -1737,10 +1732,10 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                         return (
                             <div key={h.id} className="flex items-center gap-4 group">
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 transition-colors
-                    ${i === 0 ? 'bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.4)]' :
+                                    ${i === 0 ? 'bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.4)]' :
                                         i === 1 ? 'bg-zinc-700 text-white' :
                                             i === 2 ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-900 border border-zinc-800 text-zinc-600'}
-                  `}>
+                                `}>
                                     #{i + 1}
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -1759,7 +1754,6 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
                 </div>
             </div>
 
-            {/* 5. Weekly Breakdown (Bar) */}
             <div className="bg-zinc-900 p-6 rounded-3xl shadow-2xl border border-zinc-800 col-span-1 md:col-span-1 lg:col-span-3 min-h-[300px]">
                 <h3 className="text-zinc-500 font-bold mb-6 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                     <Activity size={14} className="text-cyan-400" /> Volume
@@ -1786,16 +1780,18 @@ const AnalyticsView = ({ habits, currentDate, onOpenShare, userProfile, onToggle
 };
 
 // --- Main App Component ---
-
 export default function App() {
     const [user, setUser] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
-
-    // CHANGED: Default View is 'grid' (Tracker) instead of 'main'
     const [view, setView] = useState('grid');
     const [habits, setHabits] = useState([]);
     const [loading, setLoading] = useState(true);
+    // ─────────────────────────────────────────────────────────
+    // FIX #3 — Dedicated profileLoading state prevents the
+    //           brief null window that shows blank on iOS
+    // ─────────────────────────────────────────────────────────
+    const [profileLoading, setProfileLoading] = useState(false);
     const [authError, setAuthError] = useState(null);
     const [strictMode, setStrictMode] = useState(false);
     const [notificationPermission, setNotificationPermission] = useState('default');
@@ -1803,15 +1799,24 @@ export default function App() {
     const [isShareOpen, setIsShareOpen] = useState(false);
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isIOS, setIsIOS] = useState(false);
-
-    // New States for Onboarding/Gamification
     const [isOnboarding, setIsOnboarding] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [tokenToast, setTokenToast] = useState(false);
-
-    // Failure Recovery States
     const [reflectionOpen, setReflectionOpen] = useState(false);
     const [pendingRepair, setPendingRepair] = useState(null);
+
+    // ─────────────────────────────────────────────────────────
+    // FIX #1a — Set persistence ONCE at startup (not inside
+    //            the click handler). This is the main iOS fix:
+    //            calling setPersistence before signInWithPopup
+    //            inside a click breaks the synchronous user
+    //            gesture chain that Safari requires.
+    // ─────────────────────────────────────────────────────────
+    useEffect(() => {
+        if (firebaseConfig.apiKey !== "PLACEHOLDER") {
+            setPersistence(auth, browserLocalPersistence).catch(console.error);
+        }
+    }, []);
 
     // 1. Auth Listener
     useEffect(() => {
@@ -1858,9 +1863,10 @@ export default function App() {
 
         if (user.uid === 'local-user') {
             try {
-                const localData = localStorage.getItem('me_supreme_habits');
-                const localStrict = localStorage.getItem('me_supreme_strict_mode');
-                const localProfile = localStorage.getItem('me_supreme_profile');
+                // Using safeStorage (FIX #2) everywhere below
+                const localData = safeStorage.get('me_supreme_habits');
+                const localStrict = safeStorage.get('me_supreme_strict_mode');
+                const localProfile = safeStorage.get('me_supreme_profile');
                 if (localData) {
                     const parsedHabits = JSON.parse(localData);
                     setHabits(parsedHabits);
@@ -1874,11 +1880,14 @@ export default function App() {
                 if (localProfile) setUserProfile(JSON.parse(localProfile));
             } catch (e) {
                 console.error("Local storage load error", e);
+                setIsOnboarding(true);
             }
             return;
         }
 
         try {
+            setProfileLoading(true); // FIX #3
+
             const q = query(
                 collection(db, 'artifacts', appId, 'users', user.uid, 'habits'),
                 orderBy('createdAt', 'asc')
@@ -1909,9 +1918,13 @@ export default function App() {
                     }, { merge: true });
                     setIsOnboarding(true);
                 }
+                setProfileLoading(false); // FIX #3
+            }, (err) => {
+                console.error("Profile snapshot error", err);
+                setProfileLoading(false); // FIX #3 — always unblock on error too
             });
 
-            const savedStrict = localStorage.getItem('strictMode');
+            const savedStrict = safeStorage.get('strictMode'); // FIX #2
             if (savedStrict) setStrictMode(JSON.parse(savedStrict));
 
             return () => {
@@ -1920,6 +1933,7 @@ export default function App() {
             };
         } catch (e) {
             console.warn("Firestore sync failed:", e);
+            setProfileLoading(false); // FIX #3
         }
     }, [user]);
 
@@ -1935,7 +1949,7 @@ export default function App() {
             if (Notification.permission !== 'granted') return;
 
             const now = Date.now();
-            const lastNotif = localStorage.getItem('lastNotificationTime');
+            const lastNotif = safeStorage.get('lastNotificationTime'); // FIX #2
             const fourHours = 4 * 60 * 60 * 1000;
 
             if (!lastNotif || (now - parseInt(lastNotif) > fourHours)) {
@@ -1950,7 +1964,7 @@ export default function App() {
                             body: `You have ${pendingCount} protocols pending. Maintain discipline.`,
                             icon: '/vite.svg'
                         });
-                        localStorage.setItem('lastNotificationTime', now.toString());
+                        safeStorage.set('lastNotificationTime', now.toString()); // FIX #2
                     } catch (e) {
                         console.error("Notification failed", e);
                     }
@@ -1983,63 +1997,60 @@ export default function App() {
     // --- Helpers ---
     const saveToLocal = (updatedHabits) => {
         setHabits(updatedHabits);
-        localStorage.setItem('me_supreme_habits', JSON.stringify(updatedHabits));
+        safeStorage.set('me_supreme_habits', JSON.stringify(updatedHabits)); // FIX #2
     };
 
     const updateLocalProfile = (updates) => {
         const newProfile = { ...(userProfile || {}), ...updates };
         setUserProfile(newProfile);
-        localStorage.setItem('me_supreme_profile', JSON.stringify(newProfile));
+        safeStorage.set('me_supreme_profile', JSON.stringify(newProfile)); // FIX #2
     };
 
     const toggleStrictMode = () => {
         const newVal = !strictMode;
         setStrictMode(newVal);
-        localStorage.setItem('me_supreme_strict_mode', JSON.stringify(newVal));
-        localStorage.setItem('strictMode', JSON.stringify(newVal));
+        safeStorage.set('me_supreme_strict_mode', JSON.stringify(newVal)); // FIX #2
+        safeStorage.set('strictMode', JSON.stringify(newVal));             // FIX #2
     };
 
     // --- Auth Handlers ---
+    // ─────────────────────────────────────────────────────────
+    // FIX #1b — setPersistence removed from here; it now runs
+    //            once at startup in its own useEffect above.
+    //            This keeps signInWithPopup synchronous with
+    //            the user's tap — required by iOS Safari.
+    // ─────────────────────────────────────────────────────────
     const handleGoogleLogin = async (identityData) => {
-    if (firebaseConfig.apiKey === "PLACEHOLDER") {
-        setAuthError("Database not configured.");
-        return;
-    }
+        if (firebaseConfig.apiKey === "PLACEHOLDER") {
+            setAuthError("Database not configured.");
+            return;
+        }
 
-    const provider = new GoogleAuthProvider();
+        const provider = new GoogleAuthProvider();
 
-    try {
-
-        await setPersistence(auth, browserLocalPersistence);
-
-        const result = await signInWithPopup(auth, provider);
-
-        const user = result.user;
-
-        const displayName = `${identityData.firstName} ${identityData.lastName}`;
-
-        await updateProfile(user, { displayName });
-
-        const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
-
-        await setDoc(userDocRef, {
-            displayName,
-            email: user.email,
-            lastActive: serverTimestamp()
-        }, { merge: true });
-
-    } catch (error) {
-        console.error("Login failed:", error);
-        setAuthError(error.message);
-    }
-};
+        try {
+            const result = await signInWithPopup(auth, provider);
+            const firebaseUser = result.user;
+            const displayName = `${identityData.firstName} ${identityData.lastName}`;
+            await updateProfile(firebaseUser, { displayName });
+            const userDocRef = doc(db, 'artifacts', appId, 'users', firebaseUser.uid);
+            await setDoc(userDocRef, {
+                displayName,
+                email: firebaseUser.email,
+                lastActive: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.error("Login failed:", error);
+            setAuthError(error.message);
+        }
+    };
 
     const handleLocalMode = (identityData) => {
         const displayName = `${identityData.firstName} ${identityData.lastName}`;
         setUser({ uid: 'local-user', isAnonymous: true, displayName });
-        const localProfile = JSON.parse(localStorage.getItem('me_supreme_profile') || '{}');
+        const localProfile = JSON.parse(safeStorage.get('me_supreme_profile') || '{}'); // FIX #2
         const newProfile = { ...localProfile, displayName };
-        localStorage.setItem('me_supreme_profile', JSON.stringify(newProfile));
+        safeStorage.set('me_supreme_profile', JSON.stringify(newProfile)); // FIX #2
         setUserProfile(newProfile);
     };
 
@@ -2112,7 +2123,6 @@ export default function App() {
         }
 
         const newStreak = calculateStreak(newHistory);
-        // Token Reward Logic
         if (isCompleting && newStreak > 0 && newStreak % 7 === 0) {
             const currentTokens = userProfile?.tokens !== undefined ? userProfile.tokens : 3;
             const newTokens = currentTokens + 1;
@@ -2268,11 +2278,26 @@ export default function App() {
 
     const isConfigured = firebaseConfig.apiKey !== "PLACEHOLDER";
 
+    // ─────────────────────────────────────────────────────────
+    // Render gates — order matters
+    // ─────────────────────────────────────────────────────────
+    if (loading) {
+        return (
+            <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-4 text-white">
+                <div className="animate-spin text-lime-400 mb-4">
+                    <Loader2 size={48} />
+                </div>
+                <p className="text-zinc-500 font-mono text-sm tracking-widest animate-pulse">BOOTING SYSTEM...</p>
+            </div>
+        );
+    }
+
     if (!user) {
         return <LoginView onLogin={handleGoogleLogin} onLocalMode={handleLocalMode} error={authError} isConfigured={isConfigured} />;
     }
 
-    if (user && !userProfile && user.uid !== 'local-user') {
+    // FIX #3 — Show spinner while profile loads for Firebase users
+    if (profileLoading && user.uid !== 'local-user') {
         return (
             <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-4 text-white">
                 <div className="animate-spin text-lime-400 mb-4">
@@ -2280,7 +2305,7 @@ export default function App() {
                 </div>
                 <p className="text-zinc-500 font-mono text-sm tracking-widest animate-pulse">SYNCING PROFILE...</p>
             </div>
-        )
+        );
     }
 
     return (
@@ -2324,7 +2349,6 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Desktop Nav Items */}
                         <div className="hidden md:flex items-center gap-1 bg-black p-1 rounded-xl border border-zinc-800">
                             {['stats', 'grid', 'squad'].map(v => (
                                 <button
@@ -2433,22 +2457,11 @@ export default function App() {
                 </div>
 
                 <style>{`
-        /* Custom Scrollbar */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #18181b; 
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #3f3f46; 
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #a3e635; 
-        }
-      `}</style>
+                    .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+                    .custom-scrollbar::-webkit-scrollbar-track { background: #18181b; }
+                    .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+                    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a3e635; }
+                `}</style>
             </div>
         </ErrorBoundary>
     );
